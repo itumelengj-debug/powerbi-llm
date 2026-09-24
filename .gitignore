@@ -1,0 +1,14 @@
+# Logs and transient test output
+*.log
+*.log.err
+*.out.log
+*.err.log
+*.pid
+test-results/
+build.out.log
+build.err.log
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.git/
