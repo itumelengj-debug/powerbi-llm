@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    12-task Power BI evaluation for the local model. Saves every answer for review.
+    12-task Power BI smoke test for the local model. Saves every answer for review.
+    For the full scoreboard (57 tasks, repeats, agent mode) use: python bench\bench.py
 
 .EXAMPLE
     .\test.ps1

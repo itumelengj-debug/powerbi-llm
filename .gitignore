@@ -12,3 +12,8 @@ __pycache__/
 .venv/
 node_modules/
 .git/
+
+# Benchmark runs and local indexes
+bench/runs/
+*.sqlite
+.pytest_cache/

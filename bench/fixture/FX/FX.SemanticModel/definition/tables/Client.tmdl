@@ -1,0 +1,22 @@
+table Client
+	lineageTag: 6c1f0d3a-0003-4000-8000-000000000001
+
+	column ClientId
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: ClientId
+
+	column 'Client Name'
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ClientName
+
+	column SalesPersonId
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: SalesPersonId
+
+	column Segment
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Segment

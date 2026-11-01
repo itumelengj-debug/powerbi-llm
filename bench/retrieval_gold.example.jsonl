@@ -1,0 +1,15 @@
+{"q": "year over year change using SAMEPERIODLASTYEAR", "expect": ["sameperiodlastyear"]}
+{"q": "share of total that respects slicers ALLSELECTED", "expect": ["allselected"]}
+{"q": "why use DIVIDE instead of the / operator", "expect": ["divide"]}
+{"q": "star schema guidance for Power BI models", "expect": ["star-schema"]}
+{"q": "configure incremental refresh RangeStart RangeEnd", "expect": ["incremental-refresh"]}
+{"q": "how query folding works in Power Query", "expect": ["query-folding", "folding"]}
+{"q": "dynamic row-level security USERPRINCIPALNAME", "expect": ["row-level-security", "rls"]}
+{"q": "TMDL view createOrReplace script", "expect": ["tmdl-view", "tmdl"]}
+{"q": "PBIR report folder structure visual.json", "expect": ["projects-report", "pbir"]}
+{"q": "calculation groups SELECTEDMEASURE", "expect": ["calculation-groups", "selectedmeasure"]}
+{"q": "DAX user-defined functions FUNCTION keyword", "expect": ["user-defined-functions"]}
+{"q": "visual calculations RUNNINGSUM", "expect": ["visual-calculations", "runningsum"]}
+{"q": "Direct Lake fallback to DirectQuery", "expect": ["direct-lake"]}
+{"q": "refresh dataset in group REST API", "expect": ["refresh-dataset", "refreshes"]}
+{"q": "field parameters NAMEOF", "expect": ["field-parameters", "nameof"]}

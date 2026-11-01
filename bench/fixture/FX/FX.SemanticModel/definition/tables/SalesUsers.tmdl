@@ -1,0 +1,12 @@
+table SalesUsers
+	lineageTag: 6c1f0d3a-0004-4000-8000-000000000001
+
+	column Email
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Email
+
+	column SalesPersonId
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: SalesPersonId
