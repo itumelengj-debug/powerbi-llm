@@ -1,0 +1,35 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.12"]
+        extras: ["with-jsonschema"]
+        include:
+          - os: ubuntu-latest
+            python: "3.12"
+            extras: "stdlib-only"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          if [ "${{ matrix.extras }}" = "stdlib-only" ]; then pip install pytest; else pip install -r requirements-dev.txt; fi
+      - name: Run tests (mock Ollama, no GPU)
+        run: python -m pytest -q
+      - name: Benchmark task list loads
+        run: python bench/bench.py --list

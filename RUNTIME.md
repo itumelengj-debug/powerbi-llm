@@ -60,10 +60,9 @@ Your three-layer system and this model are solving different halves, so run them
 Pass retrieved passages straight into the run:
 
 ```python
-hits = rag_pbi.search(question, k=6)          # your existing retriever
+from powerbi_agent import retrieve_context    # Learn index + your project + Jo's index, reranked
 res = pbi.run(question, jo_system_prompt=JO_RULES,
-              context=[{"id": f"S{i}", "source": h.source, "text": h.text}
-                       for i, h in enumerate(hits, 1)])
+              context=retrieve_context(question, k=6, project_roots=[r"C:\PBI\FX"]))
 ```
 
 The context block tells the model those passages are the source of truth for product facts, to cite `[S1]`-style tags, and to answer `Unverified:` rather than fill gaps from memory - the same discipline that made `gemma4:26b` reliable, now in front of the Power BI rules and the tools.

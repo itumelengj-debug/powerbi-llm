@@ -1,0 +1,12 @@
+relationship 7a9e0c11-0001-4000-8000-000000000001
+	fromColumn: Trades.TradeDate
+	toColumn: Date.Date
+
+relationship 7a9e0c11-0002-4000-8000-000000000002
+	fromColumn: Trades.ClientId
+	toColumn: Client.ClientId
+
+relationship 7a9e0c11-0003-4000-8000-000000000003
+	isActive: false
+	fromColumn: Trades.SettleDate
+	toColumn: Date.Date

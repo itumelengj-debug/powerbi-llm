@@ -161,7 +161,7 @@ The two working attempts were unified into one system:
 from powerbi_agent import run_powerbi
 
 res = run_powerbi(question, k=6, allowed_roots=[r"C:\PBI"])
-res.text        # the answer (PII-scanned before release)
+res.text        # the answer (Jo runs its PII scan on it before release)
 res.issues      # non-empty = verifier flagged something
 res.needs_user  # steps only the user can do (apply a staged TMDL script)
 ```
@@ -189,3 +189,26 @@ The final system is a native `ollama run powerbi` model scoring **12/12** at
 call. What began as three separate attempts resolved into one system: the fine-tune taught
 the limits of the hardware, the RAG layer taught the discipline of grounding, and the hybrid
 model contributed the behavioural rulebook — each failure informing the eventual success.
+
+---
+
+## 8. Post-release upgrades (November 2026)
+
+The 12/12 score had saturated: it could no longer show whether a change helped. It also measured
+only the raw model, not the system as used. The upgrades target measurement first, then the
+weakest links it exposes.
+
+| Area | Change |
+|---|---|
+| Evaluation | `bench/`: 57 tasks (12 `hard`), repeated runs, model **and** agent mode (real retrieval + tools against a sandbox project), optional DAX execution and PBIR `$schema` checks, run-to-run comparison; `retrieval_eval.py` for recall@k / MRR |
+| Closing the loop | `run_dax_query`: read-only DAX against the open Desktop model, so measures are tested before delivery |
+| Knowledge | `refresh_docs.py` keeps a dated Learn index current; the user's project is indexed for real names; 20-candidate pool with reranking and freshness preference |
+| Verification | Citation check (fabricated `[Sn]` tags fail), PBIR schema validation against the exact `$schema` version |
+| Behaviour | Optional modular brain: core rules + only the relevant sections, ~70% smaller for DAX / M / admin prompts |
+| Delivery | Token streaming (Ollama and llama-server), interactive approval in the CLI, MCP server for any MCP client |
+| Engineering | No hard-coded paths; runs without Agent Jo's package; cached stores; 85 unit tests on mocks; CI on Windows and Ubuntu |
+
+Status: implemented and unit-tested against mock Ollama / llama-server / Learn servers. The
+benchmark baseline on the real model, the Desktop DAX runner and the live Learn crawl still need
+a first run on the workstation. Whether the modular brain matches the full one is an open
+question for `bench.py --brain modular --compare`.

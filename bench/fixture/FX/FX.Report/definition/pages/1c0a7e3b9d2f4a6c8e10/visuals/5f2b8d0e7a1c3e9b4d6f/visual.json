@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "5f2b8d0e7a1c3e9b4d6f",
+  "position": {"x": 24, "y": 24, "z": 1000, "height": 120, "width": 296, "tabOrder": 1000},
+  "visual": {
+    "visualType": "card",
+    "query": {"queryState": {"Values": {"projections": [{
+      "field": {"Measure": {"Expression": {"SourceRef": {"Entity": "_Measures"}}, "Property": "Notional (ZAR)"}},
+      "queryRef": "_Measures.Notional (ZAR)",
+      "nativeQueryRef": "Notional (ZAR)"
+    }]}}},
+    "drillFilterOtherVisuals": true
+  }
+}
