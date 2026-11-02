@@ -1,0 +1,27 @@
+table Date
+	dataCategory: Time
+	lineageTag: 6c1f0d3a-0005-4000-8000-000000000001
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: Short Date
+		summarizeBy: none
+		sourceColumn: Date
+
+	column Year
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: Year
+
+	column Month
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Month
+		sortByColumn: MonthNo
+
+	column MonthNo
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: MonthNo

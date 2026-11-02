@@ -1,0 +1,41 @@
+table Trades
+	lineageTag: 6c1f0d3a-0002-4000-8000-000000000001
+
+	column TradeId
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: TradeId
+
+	column TradeDate
+		dataType: dateTime
+		formatString: Short Date
+		summarizeBy: none
+		sourceColumn: TradeDate
+
+	column SettleDate
+		dataType: dateTime
+		formatString: Short Date
+		summarizeBy: none
+		sourceColumn: SettleDate
+
+	column ClientId
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: ClientId
+
+	column CurrencyPair
+		dataType: string
+		summarizeBy: none
+		sourceColumn: CurrencyPair
+
+	column NotionalZAR
+		dataType: decimal
+		formatString: #,##0.00
+		summarizeBy: sum
+		sourceColumn: NotionalZAR
+
+	column USDZARRate
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: USDZARRate

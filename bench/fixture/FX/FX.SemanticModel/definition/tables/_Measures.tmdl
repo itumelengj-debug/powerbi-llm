@@ -1,0 +1,20 @@
+table _Measures
+	lineageTag: 6c1f0d3a-0001-4000-8000-000000000001
+
+	measure 'Notional (ZAR)' = SUM ( Trades[NotionalZAR] )
+		formatString: #,##0
+		displayFolder: Volume
+		lineageTag: 6c1f0d3a-0001-4000-8000-000000000002
+
+	measure 'USDZAR Rate' = AVERAGE ( Trades[USDZARRate] )
+		formatString: 0.0000
+		displayFolder: Rates
+		lineageTag: 6c1f0d3a-0001-4000-8000-000000000003
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Source = #table({"Column1"}, {})
+				in
+				    Source

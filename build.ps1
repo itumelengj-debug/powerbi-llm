@@ -208,4 +208,4 @@ Write-Step 'Done'
 Write-Host "Model     $Name   (base $Base, context $chosen)"
 Write-Host "Chat      ollama run $Name      (/set nothink = fast, /set think = deep reasoning)"
 Write-Host "API       POST $Api/chat   {`"model`": `"$Name`", `"think`": false, ...}"
-Write-Host 'Evaluate  .\test.ps1'
+Write-Host 'Evaluate  .\test.ps1   (smoke)   or   python bench\bench.py   (full benchmark)'

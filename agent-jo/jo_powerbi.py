@@ -22,6 +22,12 @@ Wiring inside Jo:
         # res.issues -> non-empty = verification failed after the fix round: block or flag
         # res.needs_user -> steps only the user can do (e.g. Apply a staged TMDL script)
 
+Optional extras (all off unless you pass them):
+    dax_runner=DesktopDaxRunner()      # read-only run_dax_query tool against the open Desktop model
+    schema_validator=SchemaValidator() # PBIR $schema validation (pbir_schema.py, needs jsonschema)
+    on_token=lambda kind, text: ...    # stream tokens: kind is "content", "thinking" or "status"
+    PowerBIConfig(brain_mode="modular")  # send only the brain sections the request needs
+
 Fail-closed defaults: no approve callback = every write and script is denied.
 """
 from __future__ import annotations
@@ -59,6 +65,8 @@ class PowerBIConfig:
     approve_writes: bool = True        # False = report-file writes inside allowed_roots skip approval
     request_timeout: int = 1800
     doc_domains: tuple = ("learn.microsoft.com",)
+    brain_mode: str = "full"           # "full" | "modular": core rules + only the sections the request needs
+    dax_max_rows: int = 50             # rows per result set returned to the model by run_dax_query
 
 
 @dataclass
@@ -147,6 +155,27 @@ You have tools: read_project, write_report_files, stage_tmdl, run_powershell, lo
 - A tool result starting with DENIED or ERROR means nothing changed: explain and stop or correct.
 - Your final message summarises what was done and lists anything the user must still do."""
 
+RUN_DAX_TOOL = {"type": "function", "function": {
+    "name": "run_dax_query",
+    "description": "Run a read-only DAX query (DEFINE ... EVALUATE ...) against the semantic model open in Power BI "
+                   "Desktop and return the first rows. Use it to test a new measure before delivering it, e.g. "
+                   "DEFINE MEASURE _Measures[Test] = <expr> EVALUATE SUMMARIZECOLUMNS('Date'[Year], \"v\", [Test]). "
+                   "Cannot change the model.",
+    "parameters": {"type": "object", "properties": {
+        "query": {"type": "string", "description": "A DAX query starting with DEFINE or EVALUATE"}},
+        "required": ["query"]}}}
+
+TOOLS_NOTE_DAX = ("- Use run_dax_query to test every new or changed measure against the open model before you "
+                  "deliver it (DEFINE MEASURE ... EVALUATE ...). If it errors or returns only blanks, fix it first. "
+                  "Never claim a measure was tested unless a run_dax_query result shows it.")
+
+
+def tools_note(has_dax: bool = False) -> str:
+    if not has_dax:
+        return TOOLS_NOTE
+    return TOOLS_NOTE.replace("lookup_docs.\n", "lookup_docs, run_dax_query.\n", 1) + "\n" + TOOLS_NOTE_DAX
+
+
 # --------------------------------------------------------------------------- verifier
 
 _BLOCK = re.compile(r"```([\w#+-]*)[^\n]*\n(.*?)```", re.S)
@@ -212,9 +241,31 @@ def _check_json_doc(j, where: str) -> list:
     return []
 
 
-def verify_artifacts(text: str) -> list:
-    """Return a list of problems found in the model's final answer (empty = pass)."""
-    issues = []
+_CITE = re.compile(r"\[(S\d+)\]")
+
+
+def context_ids(context: Optional[list]) -> list:
+    return [str(c.get("id") or f"S{i}") for i, c in enumerate(context or [], 1)]
+
+
+def check_citations(text: str, context: Optional[list]) -> list:
+    """Flag [Sn] tags that do not match a passage the model was actually given."""
+    if not context:
+        return []
+    known = set(context_ids(context))
+    bad = sorted({t for t in _CITE.findall(text or "") if t not in known}, key=lambda t: int(t[1:]))
+    if not bad:
+        return []
+    return [f"cites {', '.join('[' + t + ']' for t in bad)} but only {', '.join(sorted(known, key=lambda t: (len(t), t)))} "
+            "were provided - cite a real passage or mark the point Unverified"]
+
+
+def verify_artifacts(text: str, context: Optional[list] = None,
+                     schema_check: Optional[Callable[[dict, str], list]] = None) -> list:
+    """Return a list of problems found in the model's final answer (empty = pass).
+    context: the retrieved passages the answer was grounded in (enables the citation check).
+    schema_check: optional (doc, where) -> [problems], e.g. pbir_schema.SchemaValidator()."""
+    issues = check_citations(text, context)
     for n, m in enumerate(_BLOCK.finditer(text or ""), 1):
         lang, body = m.group(1).lower(), m.group(2)
         where = f"block {n} ({lang or 'untagged'})"
@@ -227,7 +278,10 @@ def verify_artifacts(text: str) -> list:
             issues.append(f"{where}: hard-coded secret")
         if lang == "json":
             try:
-                issues += _check_json_doc(json.loads(body), where)
+                doc = json.loads(body)
+                issues += _check_json_doc(doc, where)
+                if schema_check and isinstance(doc, dict):
+                    issues += schema_check(doc, where)
             except json.JSONDecodeError as e:
                 issues.append(f"{where}: invalid JSON ({e.msg}, line {e.lineno})")
         elif lang == "tmdl":
@@ -242,7 +296,10 @@ def verify_artifacts(text: str) -> list:
             for k, hs in enumerate(re.findall(r"@'\r?\n(.*?)\r?\n'@", body, re.S), 1):
                 if hs.lstrip().startswith(("{", "[")):
                     try:
-                        issues += _check_json_doc(json.loads(hs), f"{where} here-string {k}")
+                        doc = json.loads(hs)
+                        issues += _check_json_doc(doc, f"{where} here-string {k}")
+                        if schema_check and isinstance(doc, dict):
+                            issues += schema_check(doc, f"{where} here-string {k}")
                     except json.JSONDecodeError as e:
                         issues.append(f"{where} here-string {k}: invalid JSON ({e.msg})")
             writes_report = re.search(r"(?i)definition", body) and re.search(r"(?i)WriteAllText|Set-Content|Out-File", body)
@@ -290,13 +347,16 @@ def _grounding_block(context: list) -> str:
     """Render Jo's retrieved passages with grounding rules (attempt-2 RAG layer, attempt-3 behaviour)."""
     lines = ["## RETRIEVED CONTEXT (Agent Jo)",
              "These passages are the source of truth for product facts, function names, properties and limits.",
-             "Cite the tag ([S1], [S2]) after any claim that comes from them. If the context does not cover a",
-             "point, say 'Unverified:' and give the check - never fill the gap from memory.", ""]
-    for i, c in enumerate(context, 1):
-        tag = str(c.get("id") or f"S{i}")
+             "Cite the tag ([S1], [S2]) after any claim that comes from them. Only cite tags listed below. If the",
+             "context does not cover a point, say 'Unverified:' and give the check - never fill the gap from memory.",
+             "When passages disagree, prefer the most recently updated one. Passages whose source starts with",
+             "'project:' come from the user's own model and report: use them for real table, column and measure names.",
+             ""]
+    for tag, c in zip(context_ids(context), context):
         src = str(c.get("source") or c.get("url") or "")
+        date = str(c.get("date") or "").strip()
         text = str(c.get("text") or c.get("content") or "").strip()
-        lines.append(f"[{tag}] {src}\n{text}\n")
+        lines.append(f"[{tag}] {src}" + (f" (updated {date})" if date else "") + f"\n{text}\n")
     return "\n".join(lines)
 
 
@@ -307,6 +367,84 @@ def brain_from_modelfile(path: str) -> str:
     if not m:
         raise ValueError(f"no SYSTEM \"\"\" block in {path}")
     return m.group(1).strip()
+
+
+# --------------------------------------------------------------------------- modular brain
+
+_SECTION = re.compile(r"(?m)^## (\d+)\. ")
+_CORE_SECTIONS = {1, 2, 3, 11}                   # scope, operating rules, delivery channels, safety
+_SECTION_TRIGGERS = {
+    4: r"page|visual|report|build|add|create|my model|my report|pbip|project|table|column",
+    5: r"dax|measure|calculat|ytd|mtd|qtd|yoy|year.over.year|time intelligence|filter context|context transition|"
+       r"udf|user.defined function|visual calculation|field parameter|rls|row.level|\bsum\b|divide|evaluate|"
+       r"summarize|iterator|variable|\bvar\b|slow measure|blank",
+    6: r"power query|m code|m query|query folding|fold|csv|excel file|connector|dataflow|incremental refresh|"
+       r"privacy level|transform|advanced editor|parameter|source|sharepoint|odbc|sql server|web\.contents",
+    7: r"model|relationship|star schema|storage mode|import mode|directquery|direct lake|dual|composite|aggregation|"
+       r"hybrid table|rls|ols|row.level|object.level|perspective|translation|tmdl|calculation group|cardinality|"
+       r"bidirectional|many.to.many|role|dimension|fact table|date table",
+    8: r"page|visual|pbir|pbip|report file|visual\.json|page\.json|layout|bookmark|drillthrough|tooltip page|"
+       r"slicer|textbox|card|chart|matrix|table visual|navigation|button|mobile layout|report folder",
+    9: r"design|layout|theme|colou?r|font|accessib|mobile|dashboard|look|style|ux|page|visual|chart",
+    10: r"service|workspace|deploy|pipeline|gateway|refresh|rest api|\bapi\b|capacity|licen|tenant|admin|git|fabric|"
+        r"powershell|xmla|endorse|sensitivity|app\b|publish|semantic.link|notebook|schedule|premium|ppu",
+}
+
+
+def split_brain(brain: str) -> tuple:
+    """Split the rulebook into (preamble, [(number, text), ...]) on '## N. TITLE' headings."""
+    starts = [(m.start(), int(m.group(1))) for m in _SECTION.finditer(brain)]
+    if not starts:
+        return brain, []
+    sections = []
+    for i, (pos, num) in enumerate(starts):
+        end = starts[i + 1][0] if i + 1 < len(starts) else len(brain)
+        sections.append((num, brain[pos:end].rstrip()))
+    return brain[: starts[0][0]].rstrip(), sections
+
+
+def select_brain(brain: str, request: str, has_images: bool = False) -> tuple:
+    """Return (prompt, included_section_numbers). Core sections are always kept; topic sections only when the
+    request mentions their topic. Falls back to the full brain when nothing matches or the brain has no sections."""
+    pre, sections = split_brain(brain)
+    if not sections:
+        return brain, []
+    low = (request or "").lower()
+    picked = {n for n, rx in _SECTION_TRIGGERS.items() if re.search(rx, low)}
+    if has_images:
+        picked |= {8, 9}
+    if not picked:
+        return brain, [n for n, _ in sections]
+    if 4 in picked or 8 in picked:
+        picked.add(4)
+    keep = _CORE_SECTIONS | picked
+    included = [n for n, _ in sections if n in keep]
+    omitted = [n for n, _ in sections if n not in keep]
+    parts = [pre] + [t for n, t in sections if n in keep]
+    if omitted:
+        parts.append(f"(Sections {', '.join(map(str, omitted))} of the rulebook were omitted because this request "
+                     "does not appear to need them. If it does, follow general Power BI best practice and say so.)")
+    return "\n\n".join(x for x in parts if x), included
+
+
+# --------------------------------------------------------------------------- DAX queries
+
+_DAX_START = re.compile(r"(?is)^\s*(?:(?://|--)[^\n]*\n\s*|/\*.*?\*/\s*)*(DEFINE|EVALUATE)\b")
+
+
+def dax_query_violations(query: str) -> list:
+    """run_dax_query accepts DAX queries only (DEFINE/EVALUATE). XMLA, DMVs and MDX are refused."""
+    v = []
+    q = query or ""
+    if not q.strip():
+        return ["empty query"]
+    if len(q) > 20000:
+        v.append("query longer than 20,000 characters")
+    if not _DAX_START.match(q):
+        v.append("must start with DEFINE or EVALUATE")
+    if re.search(r"(?i)\$system\.|<\s*(Batch|Alter|Create|Delete|Refresh|Execute|Statement)\b", q):
+        v.append("XMLA commands and DMV queries are not allowed")
+    return v
 
 
 def _default_audit_factory(staging_dir: str):
@@ -326,11 +464,21 @@ class PowerBIAgent:
     def __init__(self, cfg: PowerBIConfig,
                  approve: Optional[Callable[[dict], bool]] = None,
                  audit: Optional[Callable[[dict], None]] = None,
-                 web_search: Optional[Callable[[str], list]] = None):
+                 web_search: Optional[Callable[[str], list]] = None,
+                 dax_runner: Optional[Callable[[str, int], dict]] = None,
+                 schema_validator: Optional[Callable[[dict, str], list]] = None,
+                 on_token: Optional[Callable[[str, str], None]] = None):
+        """dax_runner: (query, max_rows) -> {"results": [{"columns": [...], "rows": [[...]], "total": n}]};
+        raise to report an error. Enables the read-only run_dax_query tool (see pbi_dax.DesktopDaxRunner).
+        schema_validator: (doc, where) -> [problems]; checks PBIR files against their $schema.
+        on_token: (kind, text) -> None; streams "content" and "thinking" tokens and "status" notes."""
         self.cfg = cfg
         self.approve = approve or (lambda action: False)          # fail closed
         self.audit = audit or _default_audit_factory(cfg.staging_dir)
         self.web_search = web_search
+        self.dax_runner = dax_runner
+        self.schema_validator = schema_validator
+        self.on_token = on_token
         self._brain: Optional[str] = None
         self._caps: set = set()
         self._schema_names: set = set()
@@ -347,6 +495,35 @@ class PowerBIAgent:
                                      headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout or self.cfg.request_timeout) as r:
             return json.loads(r.read().decode("utf-8"))
+
+    def _post_stream(self, path: str, body: dict):
+        """Yield JSON events from a streaming response: Ollama NDJSON lines or llama-server SSE 'data:' lines."""
+        base = self.cfg.llamacpp_url if self._is_llamacpp else self.cfg.ollama_url
+        req = urllib.request.Request(base.rstrip("/") + path,
+                                     data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.cfg.request_timeout) as r:
+            for raw in r:
+                line = raw.decode("utf-8").strip()
+                if not line:
+                    continue
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                    if line == "[DONE]":
+                        return
+                elif line.startswith((":", "event:")):
+                    continue
+                yield json.loads(line)
+
+    def _emit(self, kind: str, text: str) -> None:
+        if self.on_token and text:
+            try:
+                self.on_token(kind, text)
+            except Exception:  # a broken UI callback must not kill the request
+                pass
+
+    def tools(self) -> list:
+        return TOOLS + ([RUN_DAX_TOOL] if self.dax_runner else [])
 
     def brain(self) -> str:
         if self._brain is None:
@@ -365,38 +542,91 @@ class PowerBIAgent:
                 raise RuntimeError(f"Model '{self.cfg.model}' has no system prompt - build it with build.ps1.")
         return self._brain
 
-    def system_prompt(self, jo_system_prompt: str = "", context: Optional[list] = None) -> str:
-        parts = [self.brain()]
+    def system_prompt(self, jo_system_prompt: str = "", context: Optional[list] = None,
+                      request: str = "", has_images: bool = False) -> str:
+        brain = self.brain()
+        if self.cfg.brain_mode == "modular":
+            brain, included = select_brain(brain, request, has_images)
+            self.audit({"ts": _now(), "event": "pbi_brain", "mode": "modular", "sections": included,
+                        "chars": len(brain)})
+        parts = [brain]
         if jo_system_prompt.strip():
             parts.append("## HOST APPLICATION RULES (Agent Jo)\n" + jo_system_prompt.strip())
-        parts.append(TOOLS_NOTE)
+        parts.append(tools_note(bool(self.dax_runner)))
         if context:
             parts.append(_grounding_block(context))
         return "\n\n".join(parts)
 
     def _chat(self, messages: list, think: bool) -> dict:
-        """Returns an Ollama-shaped message dict: role, content, optional thinking and tool_calls."""
+        """Returns an Ollama-shaped message dict: role, content, optional thinking and tool_calls.
+        Streams tokens to on_token when one is set."""
+        stream = self.on_token is not None
         if self._is_llamacpp:
-            body = {"model": self.cfg.model, "messages": messages, "stream": False,
-                    "tools": TOOLS, "tool_choice": "auto"}
+            body = {"model": self.cfg.model, "messages": messages, "stream": stream,
+                    "tools": self.tools(), "tool_choice": "auto"}
+            if stream:
+                return self._llamacpp_stream(body)
             data = self._post("/v1/chat/completions", body)
             m = (data.get("choices") or [{}])[0].get("message") or {}
-            calls = []
-            for c in m.get("tool_calls") or []:
-                fn = c.get("function") or {}
-                calls.append({"id": c.get("id"), "type": "function",
-                              "function": {"name": fn.get("name", ""), "arguments": fn.get("arguments") or {}}})
-            out = {"role": "assistant", "content": m.get("content") or ""}
-            if m.get("reasoning_content"):
-                out["thinking"] = m["reasoning_content"]
-            if calls:
-                out["tool_calls"] = calls
-            return out
-        body = {"model": self.cfg.model, "messages": messages, "stream": False, "tools": TOOLS}
+            return self._llamacpp_message(m.get("content"), m.get("reasoning_content"), m.get("tool_calls") or [])
+        body = {"model": self.cfg.model, "messages": messages, "stream": stream, "tools": self.tools()}
         if "thinking" in self._caps:
             body["think"] = think
         # No options.num_ctx: keep the context the runtime was started with.
-        return self._post("/api/chat", body)["message"]
+        if not stream:
+            return self._post("/api/chat", body)["message"]
+        content, thinking, calls = [], [], []
+        for ev in self._post_stream("/api/chat", body):
+            if ev.get("error"):
+                raise RuntimeError(f"Ollama error: {ev['error']}")
+            m = ev.get("message") or {}
+            if m.get("thinking"):
+                thinking.append(m["thinking"])
+                self._emit("thinking", m["thinking"])
+            if m.get("content"):
+                content.append(m["content"])
+                self._emit("content", m["content"])
+            calls += m.get("tool_calls") or []
+        out = {"role": "assistant", "content": "".join(content)}
+        if thinking:
+            out["thinking"] = "".join(thinking)
+        if calls:
+            out["tool_calls"] = calls
+        return out
+
+    @staticmethod
+    def _llamacpp_message(content, reasoning, tool_calls) -> dict:
+        calls = []
+        for c in tool_calls:
+            fn = c.get("function") or {}
+            calls.append({"id": c.get("id"), "type": "function",
+                          "function": {"name": fn.get("name", ""), "arguments": fn.get("arguments") or {}}})
+        out = {"role": "assistant", "content": content or ""}
+        if reasoning:
+            out["thinking"] = reasoning
+        if calls:
+            out["tool_calls"] = calls
+        return out
+
+    def _llamacpp_stream(self, body: dict) -> dict:
+        content, reasoning, calls = [], [], {}
+        for ev in self._post_stream("/v1/chat/completions", body):
+            delta = ((ev.get("choices") or [{}])[0]).get("delta") or {}
+            if delta.get("reasoning_content"):
+                reasoning.append(delta["reasoning_content"])
+                self._emit("thinking", delta["reasoning_content"])
+            if delta.get("content"):
+                content.append(delta["content"])
+                self._emit("content", delta["content"])
+            for tc in delta.get("tool_calls") or []:   # OpenAI streams tool calls as fragments keyed by index
+                slot = calls.setdefault(tc.get("index", len(calls)),
+                                        {"id": None, "function": {"name": "", "arguments": ""}})
+                if tc.get("id"):
+                    slot["id"] = tc["id"]
+                fn = tc.get("function") or {}
+                slot["function"]["name"] += fn.get("name") or ""
+                slot["function"]["arguments"] += fn.get("arguments") or ""
+        return self._llamacpp_message("".join(content), "".join(reasoning), [calls[i] for i in sorted(calls)])
 
     def _user_message(self, text: str, images: Optional[list]) -> dict:
         if not images:
@@ -420,7 +650,8 @@ class PowerBIAgent:
             context: Optional[list] = None) -> PowerBIResult:
         """context: retrieved passages from Jo's RAG layer, e.g.
         [{"id": "S1", "source": "learn.microsoft.com/...", "text": "..."}]"""
-        messages = [{"role": "system", "content": self.system_prompt(jo_system_prompt, context)}]
+        messages = [{"role": "system", "content": self.system_prompt(jo_system_prompt, context,
+                                                                     request=user_text, has_images=bool(images))}]
         messages += list(history or [])
         messages.append(self._user_message(user_text, images))
 
@@ -450,14 +681,16 @@ class PowerBIAgent:
                             args = json.loads(args)
                         except json.JSONDecodeError:
                             args = {}
+                    self._emit("status", f"[tool] {name}\n")
                     result = self._dispatch(name, args, actions, needs_user)
                     messages.append(self._tool_message(name, call, result))
                 continue
 
             text = msg.get("content") or ""
-            issues = verify_artifacts(text)
+            issues = verify_artifacts(text, context=context, schema_check=self.schema_validator)
             if issues and fixes < self.cfg.max_fix_rounds:
                 fixes += 1
+                self._emit("status", f"\n[verify] {len(issues)} issue(s) found - asking the model to fix them\n")
                 self.audit({"ts": _now(), "event": "pbi_verify_fail", "issues": issues, "round": fixes})
                 messages.append({"role": "user", "content":
                                  "Automated verification failed. Fix only these issues and resend the complete "
@@ -476,6 +709,8 @@ class PowerBIAgent:
             "run_powershell": self.tool_run_powershell,
             "lookup_docs": self.tool_lookup_docs,
         }
+        if self.dax_runner:
+            handlers["run_dax_query"] = self.tool_run_dax_query
         entry = {"ts": _now(), "event": "pbi_tool", "tool": name}
         try:
             if name not in handlers:
@@ -573,6 +808,8 @@ class PowerBIAgent:
             except json.JSONDecodeError as e:
                 raise ToolError(f"{rel}: invalid JSON ({e.msg}, line {e.lineno})")
             problems = _check_json_doc(doc, rel)
+            if self.schema_validator:
+                problems += self.schema_validator(doc, rel)
             if m.group(2) == "page.json":
                 if doc.get("name") != m.group(1):
                     problems.append(f"{rel}: name must equal its folder name '{m.group(1)}'")
@@ -653,6 +890,33 @@ class PowerBIAgent:
         self.audit({"ts": _now(), "event": "pbi_powershell", "purpose": purpose, "exit": p.returncode,
                     "sha": _sha(script.encode("utf-8"))})
         return f"EXIT {p.returncode}\nSTDOUT:\n{p.stdout[-6000:]}\nSTDERR:\n{p.stderr[-2000:]}"
+
+    def tool_run_dax_query(self, query: str) -> str:
+        problems = dax_query_violations(query)
+        if problems:
+            raise ToolError("query refused (" + "; ".join(problems) + ")")
+        sha = _sha(query.encode("utf-8"))
+        try:
+            out = self.dax_runner(query, self.cfg.dax_max_rows) or {}
+        except Exception as e:
+            self.audit({"ts": _now(), "event": "pbi_dax", "ok": False, "sha": sha})
+            return f"ERROR: the query failed: {str(e)[:2000]}"
+        sets = out.get("results") or []
+        # Values go back to the local model only; the audit log records shape, never data.
+        self.audit({"ts": _now(), "event": "pbi_dax", "ok": True, "sha": sha,
+                    "rows": [s.get("total", len(s.get("rows") or [])) for s in sets]})
+        lines = []
+        for n, rs in enumerate(sets, 1):
+            cols, rows = rs.get("columns") or [], rs.get("rows") or []
+            total = rs.get("total", len(rows))
+            lines.append(f"Result {n}: {total} row(s)" + (f", first {len(rows)} shown" if total > len(rows) else ""))
+            lines.append(" | ".join(map(str, cols)))
+            for r in rows:
+                lines.append(" | ".join("(blank)" if v is None else str(v) for v in r))
+            values = [v for r in rows for v in (r[1:] if len(r) > 1 else r)]
+            if values and all(v is None for v in values):
+                lines.append("WARNING: every value is blank - check filters, relationships and the date table.")
+        return ("OK\n" + "\n".join(lines))[:12000] if lines else "OK: the query returned no result sets."
 
     def outbound_violations(self, query: str) -> list:
         v = []

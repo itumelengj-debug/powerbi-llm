@@ -1,0 +1,3 @@
+# Runtime code is standard library only. These are for tests and optional features.
+pytest>=8
+jsonschema>=4.18   # optional: PBIR $schema validation (pbir_schema.py, bench --schema)
