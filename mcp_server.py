@@ -10,6 +10,10 @@ Tools:
   powerbi_search_docs   return the retrieved [S1]..[Sn] passages for a query
   powerbi_read_project  inventory a PBIP project (tables, measures, pages, visuals)
   powerbi_verify        run the artifact verifier on text (headers, JSON, PBIR rules, TMDL, citations)
+  powerbi_design_dashboard  compile a page from a spec (Dashboard Studio): staged, or written with --expose-writes
+  powerbi_make_theme    accessible report theme from a preset or brand colour
+  powerbi_lint_design   design score (0-100) and fixes for an existing report
+  powerbi_svg_measure   stage a DAX SVG measure (sparkline, progress, bullet, delta badge, colour rule)
   powerbi_run_dax       read-only DAX query against the open Desktop model   (--dax)
   powerbi_write_report_files  write PBIR pages/visuals                      (--expose-writes)
 
@@ -30,7 +34,7 @@ import sys
 import traceback
 
 import powerbi_agent as pa
-from jo_powerbi import PowerBIAgent, PowerBIConfig, verify_artifacts
+from jo_powerbi import DESIGN_TOOLS, HAVE_DESIGN, PowerBIAgent, PowerBIConfig, ToolError, verify_artifacts
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_INFO = {"name": "powerbi-llm", "version": "1.1.0"}
@@ -42,8 +46,10 @@ def _log(*a):
 
 class Server:
     def __init__(self, roots: list, model: str = pa.DEFAULT_MODEL, dax: bool = False,
-                 expose_writes: bool = False, brain_mode: str = "full", k: int = pa.DEFAULT_K):
+                 expose_writes: bool = False, brain_mode: str = "full", k: int = pa.DEFAULT_K,
+                 theme: str = "boardroom", brand_color: str = ""):
         self.roots, self.model, self.k, self.brain_mode = list(roots), model, k, brain_mode
+        self.theme, self.brand_color = theme, brand_color
         self.dax_runner = pa.make_dax_runner() if dax else None
         self.expose_writes = expose_writes
         self.schema = pa.make_schema_validator(False)
@@ -74,6 +80,14 @@ class Server:
                             "PBIR visual/page rules, TMDL indentation and table replacement, secrets, placeholders.",
              "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
         ]
+        if HAVE_DESIGN:
+            for d in DESIGN_TOOLS:
+                fn = d["function"]
+                desc = fn["description"]
+                if fn["name"] == "design_dashboard":
+                    desc += (" Pages are written only when this server runs with --expose-writes; otherwise "
+                             "they are staged with a PowerShell writer script.")
+                t.append({"name": "powerbi_" + fn["name"], "description": desc, "inputSchema": fn["parameters"]})
         if self.dax_runner:
             t.append({"name": "powerbi_run_dax",
                       "description": "Run a read-only DAX query (DEFINE/EVALUATE) against the model open in "
@@ -95,7 +109,7 @@ class Server:
 
     def _agent(self, approve=None) -> PowerBIAgent:
         cfg = PowerBIConfig(model=self.model, ollama_url=pa.OLLAMA_HOST, allowed_roots=self.roots,
-                            brain_mode=self.brain_mode)
+                            brain_mode=self.brain_mode, theme=self.theme, brand_color=self.brand_color)
         return PowerBIAgent(cfg, approve=approve, dax_runner=self.dax_runner, schema_validator=self.schema)
 
     def call_tool(self, name: str, args: dict) -> str:
@@ -118,6 +132,18 @@ class Server:
         if name == "powerbi_verify":
             issues = verify_artifacts(args["text"], schema_check=self.schema)
             return "PASS: no issues found." if not issues else "ISSUES:\n" + "\n".join(f"- {i}" for i in issues)
+        if name == "powerbi_design_dashboard" and HAVE_DESIGN:
+            # The MCP client's per-call approval is the gate when writes are exposed.
+            agent = self._agent(approve=(lambda action: True) if self.expose_writes else None)
+            return agent.tool_design_dashboard(args["spec"], args.get("report_path", ""), write=self.expose_writes)
+        if name == "powerbi_make_theme" and HAVE_DESIGN:
+            return self._agent().tool_make_theme(**{k: v for k, v in args.items()
+                                                    if k in ("preset", "brand_color", "mode", "font", "name")})
+        if name == "powerbi_lint_design" and HAVE_DESIGN:
+            return self._agent().tool_lint_design(args["report_path"], args.get("page", ""))
+        if name == "powerbi_svg_measure" and HAVE_DESIGN:
+            keys = ("kind", "measure", "axis", "target", "comparison", "table", "name", "colour")
+            return self._agent().tool_svg_measure(**{k: v for k, v in args.items() if k in keys})
         if name == "powerbi_run_dax" and self.dax_runner:
             return self._agent().tool_run_dax_query(args["query"])
         if name == "powerbi_write_report_files" and self.expose_writes:
@@ -151,6 +177,8 @@ class Server:
                     text, is_error = self.call_tool(name, params.get("arguments") or {}), False
                 except KeyError as e:
                     text, is_error = f"ERROR: missing argument {e}", True
+                except ToolError as e:
+                    text, is_error = f"ERROR: {e}", True
                 except Exception as e:
                     _log(traceback.format_exc())
                     text, is_error = f"ERROR: {type(e).__name__}: {e}", True
@@ -198,6 +226,8 @@ def main(argv=None):
     ap.add_argument("--expose-writes", action="store_true",
                     help="add powerbi_write_report_files, gated by the MCP client's approval prompt")
     ap.add_argument("--brain", choices=["full", "modular"], default="full")
+    ap.add_argument("--theme", default="boardroom", help="Dashboard Studio preset for previews and linting")
+    ap.add_argument("--brand-color", default="", help="derive the Dashboard Studio look from a brand colour")
     a = ap.parse_args(argv)
     for stream in (sys.stdin, sys.stdout):   # Windows pipes default to cp1252; MCP is UTF-8
         try:
@@ -205,7 +235,7 @@ def main(argv=None):
         except (AttributeError, ValueError):
             pass
     _log(f"powerbi MCP server: model={a.model} roots={a.root or 'none'} dax={a.dax} writes={a.expose_writes}")
-    Server(a.root, a.model, a.dax, a.expose_writes, a.brain, a.k).serve()
+    Server(a.root, a.model, a.dax, a.expose_writes, a.brain, a.k, a.theme, a.brand_color).serve()
 
 
 if __name__ == "__main__":

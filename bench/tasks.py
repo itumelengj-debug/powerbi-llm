@@ -14,7 +14,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from checks import (CONFIRM, REFUSAL, UNSURE, any_of, blocks, called, citations_valid, code, has, jsons,
+from checks import (CONFIRM, REFUSAL, UNSURE, any_of, blocks, called, citations_valid, code, design_lint, has, jsons,
+                    layout_plan_ok, theme_accessible,
                     none_of, projections, refs_ok, visuals)
 
 BOTH = frozenset({"model", "agent"})
@@ -63,6 +64,35 @@ def _theme(min_colours=6, extra=None):
                 return extra(r) if extra else True
         return False
     return check
+
+
+def _designed_page(r):
+    lint = design_lint(r)
+    if lint is None:
+        return False, "no page with positioned visuals was written"
+    page = [d for d in jsons(r) if isinstance(d, dict) and d.get("displayName") == "Desk Overview"]
+    if not page:
+        return False, "no 'Desk Overview' page"
+    ok = lint["errors"] == 0 and lint["score"] >= 85
+    return ok, f"design score {lint['score']} ({lint['errors']} errors)"
+
+
+def _brand_theme(r):
+    if r.mode == "agent" and called(r, "make_theme", "ok"):
+        return True, "make_theme"
+    for d in jsons(r):
+        if isinstance(d, dict) and d.get("dataColors"):
+            return theme_accessible(d)
+    return False, "no theme JSON"
+
+
+def _svg_sparkline(r):
+    if r.mode == "agent" and called(r, "svg_measure", "ok"):
+        return True, "svg_measure"
+    c = code(r.text)
+    ok = (has(c, r"data:image/svg\+xml", r"CONCATENATEX") and none_of(c, r"(fill|stroke)\s*=\s*['\"]#")
+          and any_of(r.text, r"Image ?URL", r"ImageUrl"))
+    return ok, "checked data URI, CONCATENATEX, %23 colours and Image URL category"
 
 
 def _no_secret_in_code(r):
@@ -240,9 +270,33 @@ TASKS = [
          _theme(8, lambda r: any_of(r.text, r"contrast", r"4\.5", r"WCAG"))),
     Task("design-exec-layout", "design",
          "Plan an executive FX page at 1280x720: 4 KPI cards, a notional trend, a client breakdown and a slicer "
-         "panel. One line per visual with x, y, width, height.",
-         lambda r: len(re.findall(r"\b\d{2,4}\s*[,x×]\s*\d{2,4}\b", r.text)) >= 6
-         and none_of(r.text, r"\b(1[3-9]\d\d|[2-9]\d{3})\s*,\s*\d")),
+         "panel. One line per visual in the form 'x 24, y 112, w 296, h 120'.",
+         layout_plan_ok),
+    Task("design-build-exec", "design",
+         "Build a new executive overview page 'Desk Overview' in {report}: KPI tiles for Notional (ZAR) and USDZAR "
+         "Rate, a monthly notional trend, a ranking of clients by notional, and a Year slicer. Make it look polished.",
+         _designed_page, modes=AGENT),
+    Task("design-review-existing", "design",
+         "Review the design of the Overview page in {report} and tell me the top fixes.",
+         lambda r: (called(r, "lint_design") or called(r, "read_project")) and any_of(r.text, r"alt text", r"title"),
+         modes=AGENT),
+    Task("design-brand-theme", "design",
+         "Create a Power BI theme for brand colour #0F766E on a light background. Text must reach 4.5:1 and every "
+         "data colour 3:1 against the visual background.",
+         _brand_theme),
+    Task("design-svg-sparkline", "design",
+         "DAX measure that draws an SVG sparkline of [Notional (ZAR)] over 'Date'[Date] for each client row in a "
+         "table, plus how to make Power BI show it as an image.",
+         _svg_sparkline),
+    Task("design-critique", "design",
+         "Critique this page layout (1280x720): card A at x 24, y 24, 300x120; card B at x 330, y 30, 300x120; line "
+         "chart at x 24, y 160, 700x400; pie chart with 9 slices at x 600, y 200, 400x400; no titles on any visual.",
+         lambda r: has(r.text, r"overlap") and any_of(r.text, r"align", r"grid") and any_of(r.text, r"pie", r"donut")
+         and any_of(r.text, r"title"), level="hard"),
+    Task("design-kpi-context", "design",
+         "How should a KPI tile for monthly notional look so a manager can judge it at a glance?",
+         lambda r: any_of(r.text, r"target|goal|prior|PY|vs\.?|variance") and any_of(r.text, r"trend|sparkline")
+         and any_of(r.text, r"arrow|▲|sign|icon|colour alone|color alone")),
 
     # ------------------------------------------------------------------ service, ALM and admin
     Task("09-refresh-api", "admin",

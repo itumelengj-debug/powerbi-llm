@@ -27,6 +27,7 @@ Optional extras (all off unless you pass them):
     schema_validator=SchemaValidator() # PBIR $schema validation (pbir_schema.py, needs jsonschema)
     on_token=lambda kind, text: ...    # stream tokens: kind is "content", "thinking" or "status"
     PowerBIConfig(brain_mode="modular")  # send only the brain sections the request needs
+    PowerBIConfig(theme="midnight")      # Dashboard Studio look (design_dashboard, make_theme, lint_design)
 
 Fail-closed defaults: no approve callback = every write and script is denied.
 """
@@ -45,6 +46,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
+
+try:  # Dashboard Studio (pbi_design/, next to this file); the adapter works without it
+    from pbi_design import compiler as _dz_compiler
+    from pbi_design import lint as _dz_lint
+    from pbi_design import pbir as _dz_pbir
+    from pbi_design import render as _dz_render
+    from pbi_design import svg_measures as _dz_svg
+    from pbi_design import themes as _dz_themes
+    from pbi_design.model import Model as _DzModel
+    HAVE_DESIGN = True
+except ImportError:  # pragma: no cover - exercised only when the package is missing
+    HAVE_DESIGN = False
 
 # --------------------------------------------------------------------------- config
 
@@ -67,6 +80,9 @@ class PowerBIConfig:
     doc_domains: tuple = ("learn.microsoft.com",)
     brain_mode: str = "full"           # "full" | "modular": core rules + only the sections the request needs
     dax_max_rows: int = 50             # rows per result set returned to the model by run_dax_query
+    design_tools: bool = True          # offer design_dashboard / make_theme / lint_design / svg_measure
+    theme: str = "boardroom"           # Dashboard Studio preset used for previews and linting
+    brand_color: str = ""              # or derive the look from one brand colour
 
 
 @dataclass
@@ -76,6 +92,7 @@ class PowerBIResult:
     actions: list
     needs_user: list
     thinking: str = ""
+    design: list = field(default_factory=list)   # design_dashboard / lint_design results: scores, previews
 
 
 class ToolError(Exception):
@@ -165,15 +182,85 @@ RUN_DAX_TOOL = {"type": "function", "function": {
         "query": {"type": "string", "description": "A DAX query starting with DEFINE or EVALUATE"}},
         "required": ["query"]}}}
 
+DESIGN_TOOLS = [
+    {"type": "function", "function": {
+        "name": "design_dashboard",
+        "description": "Build a report page from a short spec. You choose what to show (title, KPIs, charts, fields, "
+                       "titles); the design engine places everything on the 8 px grid, formats through the theme, adds "
+                       "alt text and reading order, checks every field against the model, scores the design and saves "
+                       "a preview. With report_path it writes the page (user approval, backup, Desktop must be closed); "
+                       "without it the files and a PowerShell writer are staged. Use it for every new page.",
+        "parameters": {"type": "object", "properties": {
+            "spec": {"type": "object", "description":
+                     "{title, subtitle?, layout?: auto|executive|operational|analytical|detail, "
+                     "kpis?: [measure | {measure, label?, trend? (date column), target? (measure)}] (max 6), "
+                     "visuals?: [{type: line|area|column|bar|stackedcolumn|stackedbar|combo|donut|waterfall|scatter|"
+                     "table|matrix|gauge|kpi|card|funnel|ribbon|decomposition, title, category?, values?, series?, "
+                     "lines? (combo), columns? (table), rows? (matrix), x?, y?, size?, details? (scatter), target?, "
+                     "sort?: desc|asc|none, primary?: true}] (max 8), slicers?: [column | {field, mode?: Dropdown|"
+                     "Basic|Between|Relative, title?}] (max 4, or 6 with layout analytical)}. Fields: Table[Field], "
+                     "'Table Name'[Field] or [Measure]."},
+            "report_path": {"type": "string", "description": "Path to the <Name>.Report folder (optional)"}},
+            "required": ["spec"]}}},
+    {"type": "function", "function": {
+        "name": "make_theme",
+        "description": "Create a report theme (View > Themes > Browse for themes): preset boardroom, midnight, fxdesk, "
+                       "okabe-ito or mono, or one derived from a brand colour. Checks text contrast (4.5:1), chart "
+                       "colour contrast (3:1) and colour-blind separability, and stages the theme file.",
+        "parameters": {"type": "object", "properties": {
+            "preset": {"type": "string"}, "brand_color": {"type": "string", "description": "#RRGGBB"},
+            "mode": {"type": "string", "description": "light or dark (brand themes)"},
+            "font": {"type": "string"}, "name": {"type": "string"}}}}},
+    {"type": "function", "function": {
+        "name": "lint_design",
+        "description": "Score the design of an existing PBIR report (0-100 per page): overlaps, alignment, grid, "
+                       "gutters, clutter, chart choice, titles, alt text, tab order, hard-coded colours. Read-only.",
+        "parameters": {"type": "object", "properties": {
+            "report_path": {"type": "string", "description": "Path to the <Name>.Report folder"},
+            "page": {"type": "string", "description": "Optional page name or display name"}},
+            "required": ["report_path"]}}},
+    {"type": "function", "function": {
+        "name": "svg_measure",
+        "description": "Generate and stage a DAX measure that draws an SVG image in tables, matrices and cards: "
+                       "sparkline (measure + date axis), progress or bullet (measure + target), delta_badge "
+                       "(measure + comparison) or colour_rule (hex colour for conditional formatting).",
+        "parameters": {"type": "object", "properties": {
+            "kind": {"type": "string", "description": "sparkline | progress | bullet | delta_badge | colour_rule"},
+            "measure": {"type": "string", "description": "[Measure] to draw"},
+            "axis": {"type": "string", "description": "sparkline: date column, e.g. 'Date'[Date]"},
+            "target": {"type": "string", "description": "progress/bullet: target measure"},
+            "comparison": {"type": "string", "description": "delta_badge: comparison measure (e.g. prior year)"},
+            "table": {"type": "string", "description": "home table for the new measure (default _Measures)"},
+            "name": {"type": "string", "description": "new measure name"},
+            "colour": {"type": "string", "description": "#RRGGBB (default: theme accent)"}},
+            "required": ["kind", "measure"]}}},
+]
+
+TOOLS_NOTE_DESIGN = (
+    "- For any new report page or dashboard, call design_dashboard with a spec instead of writing visual.json by "
+    "hand: you decide what to show (KPIs, charts, exact model fields, insight titles); the engine handles layout, "
+    "formatting, alt text, reading order and validation. If it returns errors, fix the spec and call it again.\n"
+    "- Visual formatting comes from the theme: offer make_theme (preset or brand colour) for a new look.\n"
+    "- Use lint_design to review an existing report and fix what it flags; svg_measure for sparklines, progress "
+    "bars, bullets and variance badges.\n"
+    "- In the final message give the design score, the preview path and any USER STEP lines.")
+
 TOOLS_NOTE_DAX = ("- Use run_dax_query to test every new or changed measure against the open model before you "
                   "deliver it (DEFINE MEASURE ... EVALUATE ...). If it errors or returns only blanks, fix it first. "
                   "Never claim a measure was tested unless a run_dax_query result shows it.")
 
 
-def tools_note(has_dax: bool = False) -> str:
-    if not has_dax:
-        return TOOLS_NOTE
-    return TOOLS_NOTE.replace("lookup_docs.\n", "lookup_docs, run_dax_query.\n", 1) + "\n" + TOOLS_NOTE_DAX
+def tools_note(has_dax: bool = False, has_design: bool = False) -> str:
+    extra = (["design_dashboard", "make_theme", "lint_design", "svg_measure"] if has_design else []) + \
+            (["run_dax_query"] if has_dax else [])
+    note = TOOLS_NOTE
+    if extra:
+        note = note.replace("lookup_docs.\n", "lookup_docs, " + ", ".join(extra) + ".\n", 1)
+    if has_design:
+        note += "\n" + TOOLS_NOTE_DESIGN
+    if has_dax:
+        note += "\n" + TOOLS_NOTE_DAX
+    return note
 
 
 # --------------------------------------------------------------------------- verifier
@@ -266,6 +353,7 @@ def verify_artifacts(text: str, context: Optional[list] = None,
     context: the retrieved passages the answer was grounded in (enables the citation check).
     schema_check: optional (doc, where) -> [problems], e.g. pbir_schema.SchemaValidator()."""
     issues = check_citations(text, context)
+    page_visuals = []
     for n, m in enumerate(_BLOCK.finditer(text or ""), 1):
         lang, body = m.group(1).lower(), m.group(2)
         where = f"block {n} ({lang or 'untagged'})"
@@ -282,6 +370,8 @@ def verify_artifacts(text: str, context: Optional[list] = None,
                 issues += _check_json_doc(doc, where)
                 if schema_check and isinstance(doc, dict):
                     issues += schema_check(doc, where)
+                if isinstance(doc, dict) and "position" in doc and "visual" in doc:
+                    page_visuals.append(doc)
             except json.JSONDecodeError as e:
                 issues.append(f"{where}: invalid JSON ({e.msg}, line {e.lineno})")
         elif lang == "tmdl":
@@ -300,6 +390,8 @@ def verify_artifacts(text: str, context: Optional[list] = None,
                         issues += _check_json_doc(doc, f"{where} here-string {k}")
                         if schema_check and isinstance(doc, dict):
                             issues += schema_check(doc, f"{where} here-string {k}")
+                        if isinstance(doc, dict) and "position" in doc and "visual" in doc:
+                            page_visuals.append(doc)
                     except json.JSONDecodeError as e:
                         issues.append(f"{where} here-string {k}: invalid JSON ({e.msg})")
             writes_report = re.search(r"(?i)definition", body) and re.search(r"(?i)WriteAllText|Set-Content|Out-File", body)
@@ -308,6 +400,10 @@ def verify_artifacts(text: str, context: Optional[list] = None,
                     issues.append(f"{where}: writes report files without checking Power BI Desktop is closed")
                 if not re.search(r"(?i)Copy-Item|git\s+commit|backup", body):
                     issues.append(f"{where}: writes report files without a backup step")
+    if HAVE_DESIGN and len(page_visuals) >= 2:     # objective layout defects across the page being built
+        for f in _dz_lint.lint_page(None, page_visuals)["issues"]:
+            if f["severity"] == "error":
+                issues.append(f"layout: {f['message']}")
     return issues
 
 
@@ -388,6 +484,8 @@ _SECTION_TRIGGERS = {
     9: r"design|layout|theme|colou?r|font|accessib|mobile|dashboard|look|style|ux|page|visual|chart",
     10: r"service|workspace|deploy|pipeline|gateway|refresh|rest api|\bapi\b|capacity|licen|tenant|admin|git|fabric|"
         r"powershell|xmla|endorse|sensitivity|app\b|publish|semantic.link|notebook|schedule|premium|ppu",
+    12: r"design|dashboard|layout|theme|colou?r|page|visual|report|kpi|tile|card|look|style|beautiful|pretty|"
+        r"modern|polish|clean|ux|svg|sparkline|bullet|badge|screenshot|lint|wireframe|mock.?up",
 }
 
 
@@ -412,11 +510,13 @@ def select_brain(brain: str, request: str, has_images: bool = False) -> tuple:
     low = (request or "").lower()
     picked = {n for n, rx in _SECTION_TRIGGERS.items() if re.search(rx, low)}
     if has_images:
-        picked |= {8, 9}
+        picked |= {8, 9, 12}
     if not picked:
         return brain, [n for n, _ in sections]
     if 4 in picked or 8 in picked:
         picked.add(4)
+    if 8 in picked:
+        picked.add(12)             # page builds go through the design system
     keep = _CORE_SECTIONS | picked
     included = [n for n, _ in sections if n in keep]
     omitted = [n for n, _ in sections if n not in keep]
@@ -445,6 +545,43 @@ def dax_query_violations(query: str) -> list:
     if re.search(r"(?i)\$system\.|<\s*(Batch|Alter|Create|Delete|Refresh|Execute|Statement)\b", q):
         v.append("XMLA commands and DMV queries are not allowed")
     return v
+
+
+def _writer_script(compiled, report: str = "") -> str:
+    """PowerShell writer (rulebook template 8.7) for a compiled page: validate, back up, check Desktop is
+    closed, write every file, register the page in pages.json."""
+    head = ["# Plan: " + "; ".join(f"{p['type']} '{p['title']}' {p['x']},{p['y']} {p['width']}x{p['height']}"
+                                   for p in compiled.placements)]
+    if report:
+        head += ["param([string]$Report = '" + report.replace("'", "''") + "')"]
+    else:
+        head += ["param([Parameter(Mandatory = $true)][string]$Report)"]
+    body = ["$ErrorActionPreference = 'Stop'",
+            "$def = Join-Path $Report 'definition'",
+            "if (-not (Test-Path (Join-Path $def 'pages\\pages.json'))) { throw \"Not a PBIR report: $Report\" }",
+            "if (Get-Process PBIDesktop -ErrorAction SilentlyContinue) { throw 'Close Power BI Desktop first, then re-run.' }",
+            f"$page = '{compiled.page_name}'",
+            "$files = [ordered]@{}"]
+    for rel, doc in compiled.files.items():
+        win = rel.replace("/", "\\")
+        body += [f"$files['{win}'] = @'", json.dumps(doc, indent=2, ensure_ascii=False), "'@"]
+    body += ["foreach ($k in $files.Keys) { $null = $files[$k] | ConvertFrom-Json }   # validate everything first",
+             "$backup = Join-Path $env:USERPROFILE ('PBI-Backups\\' + (Split-Path $Report -Leaf) + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))",
+             "New-Item -ItemType Directory -Force -Path (Split-Path $backup) | Out-Null",
+             "Copy-Item $Report $backup -Recurse",
+             "$utf8 = New-Object System.Text.UTF8Encoding($false)",
+             "foreach ($k in $files.Keys) {",
+             "    $path = Join-Path $def $k",
+             "    New-Item -ItemType Directory -Force -Path (Split-Path $path) | Out-Null",
+             "    [System.IO.File]::WriteAllText($path, $files[$k], $utf8)",
+             "    Write-Host \"wrote $k\"",
+             "}",
+             "$pagesPath = Join-Path $def 'pages\\pages.json'",
+             "$pages = Get-Content $pagesPath -Raw -Encoding UTF8 | ConvertFrom-Json",
+             "if (@($pages.pageOrder) -notcontains $page) { $pages.pageOrder = @($pages.pageOrder) + $page }",
+             "[System.IO.File]::WriteAllText($pagesPath, ($pages | ConvertTo-Json -Depth 20), $utf8)",
+             "Write-Host \"Done. Reopen the .pbip. Backup: $backup\""]
+    return "\n".join(head + body) + "\n"
 
 
 def _default_audit_factory(staging_dir: str):
@@ -482,6 +619,8 @@ class PowerBIAgent:
         self._brain: Optional[str] = None
         self._caps: set = set()
         self._schema_names: set = set()
+        self._design: list = []
+        self._tokens_override = None
 
     # ---- transport (Ollama /api/chat or llama-server /v1/chat/completions)
     @property
@@ -522,8 +661,12 @@ class PowerBIAgent:
             except Exception:  # a broken UI callback must not kill the request
                 pass
 
+    @property
+    def _has_design(self) -> bool:
+        return HAVE_DESIGN and self.cfg.design_tools
+
     def tools(self) -> list:
-        return TOOLS + ([RUN_DAX_TOOL] if self.dax_runner else [])
+        return TOOLS + (DESIGN_TOOLS if self._has_design else []) + ([RUN_DAX_TOOL] if self.dax_runner else [])
 
     def brain(self) -> str:
         if self._brain is None:
@@ -552,7 +695,7 @@ class PowerBIAgent:
         parts = [brain]
         if jo_system_prompt.strip():
             parts.append("## HOST APPLICATION RULES (Agent Jo)\n" + jo_system_prompt.strip())
-        parts.append(tools_note(bool(self.dax_runner)))
+        parts.append(tools_note(bool(self.dax_runner), self._has_design))
         if context:
             parts.append(_grounding_block(context))
         return "\n\n".join(parts)
@@ -658,6 +801,7 @@ class PowerBIAgent:
         if think is None:
             think = self.cfg.think if self.cfg.think is not None else bool(_REASONING.search(user_text))
         actions, needs_user, thinking = [], [], []
+        self._design = []
         tool_rounds = fixes = 0
         self.audit({"ts": _now(), "event": "pbi_request", "think": think, "chars": len(user_text)})
 
@@ -672,7 +816,8 @@ class PowerBIAgent:
                 tool_rounds += 1
                 if tool_rounds > self.cfg.max_tool_rounds:
                     text = "Stopped: tool-call limit reached. Actions so far are listed in the audit log."
-                    return PowerBIResult(text, ["tool-call limit reached"], actions, needs_user, "\n".join(thinking))
+                    return PowerBIResult(text, ["tool-call limit reached"], actions, needs_user, "\n".join(thinking),
+                                         list(self._design))
                 for call in calls:
                     fn = call.get("function") or {}
                     name, args = fn.get("name", ""), fn.get("arguments") or {}
@@ -698,7 +843,7 @@ class PowerBIAgent:
                 continue
             self.audit({"ts": _now(), "event": "pbi_result", "issues": issues,
                         "actions": [{"tool": a["tool"], "status": a["status"]} for a in actions]})
-            return PowerBIResult(text, issues, actions, needs_user, "\n".join(thinking))
+            return PowerBIResult(text, issues, actions, needs_user, "\n".join(thinking), list(self._design))
 
     # ---- tool dispatch
     def _dispatch(self, name: str, args: dict, actions: list, needs_user: list) -> str:
@@ -711,6 +856,9 @@ class PowerBIAgent:
         }
         if self.dax_runner:
             handlers["run_dax_query"] = self.tool_run_dax_query
+        if self._has_design:
+            handlers.update(design_dashboard=self.tool_design_dashboard, make_theme=self.tool_make_theme,
+                            lint_design=self.tool_lint_design, svg_measure=self.tool_svg_measure)
         entry = {"ts": _now(), "event": "pbi_tool", "tool": name}
         try:
             if name not in handlers:
@@ -719,6 +867,9 @@ class PowerBIAgent:
             status = "denied" if out.startswith("DENIED") else "ok"
             if name == "stage_tmdl" and status == "ok":
                 needs_user.append(out)
+            for line in out.splitlines():      # tools hand manual steps to the user with "USER STEP: ..."
+                if line.startswith("USER STEP: ") and line[11:] not in needs_user:
+                    needs_user.append(line[11:])
         except TypeError as e:
             out, status = f"ERROR: bad arguments for {name}: {e}", "error"
         except ToolError as e:
@@ -917,6 +1068,168 @@ class PowerBIAgent:
             if values and all(v is None for v in values):
                 lines.append("WARNING: every value is blank - check filters, relationships and the date table.")
         return ("OK\n" + "\n".join(lines))[:12000] if lines else "OK: the query returned no result sets."
+
+    # ---- Dashboard Studio tools
+    def _tokens(self):
+        if self._tokens_override is not None:
+            return self._tokens_override
+        return _dz_themes.resolve(self.cfg.theme or "boardroom", brand=self.cfg.brand_color)
+
+    def _guess_model(self):
+        """The only semantic model under allowed_roots, if there is exactly one (for name checks without a report)."""
+        found = []
+        for root in self.cfg.allowed_roots:
+            r = Path(root).expanduser()
+            if r.exists():
+                found += [p for p in r.glob("*.SemanticModel")] + [p for p in r.glob("*/*.SemanticModel")]
+        found = sorted(set(found))
+        return _DzModel.from_semantic_model(found[0]) if len(found) == 1 else None
+
+    def _stamp_dir(self, *parts) -> Path:
+        d = Path(self.cfg.staging_dir).joinpath(*parts)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def tool_design_dashboard(self, spec, report_path: str = "", write: bool = True) -> str:
+        if isinstance(spec, str):
+            try:
+                spec = json.loads(spec)
+            except json.JSONDecodeError as e:
+                raise ToolError(f"spec is not valid JSON ({e.msg})")
+        tokens = self._tokens()
+        report = model = versions = existing = None
+        if report_path:
+            report = self._confine(report_path)
+            if report.suffix != ".Report" or not (report / "definition" / "pages" / "pages.json").exists():
+                raise ToolError(f"{report} is not a PBIR report folder (missing definition/pages/pages.json)")
+            model = _DzModel.for_report(report)
+            versions = _dz_pbir.detect_versions(report)
+            existing = _dz_pbir.existing_names(report)
+        else:
+            model = self._guess_model()
+        c = _dz_compiler.compile_dashboard(spec, model, versions, existing, tokens)
+        if c.errors:
+            raise ToolError("the spec needs fixing (nothing was written):\n- " + "\n- ".join(c.errors))
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        prev_dir = self._stamp_dir("previews")
+        svg = _dz_render.render_page_svg(c.page_doc(), c.visual_docs(), tokens)
+        preview = prev_dir / f"{c.page_name}-{stamp}.html"
+        preview.write_text(_dz_render.render_html(svg, c.display_name, c.lint, tokens), encoding="utf-8")
+        (prev_dir / f"{c.page_name}-{stamp}.svg").write_text(svg, encoding="utf-8")
+        self._design.append({"tool": "design_dashboard", "page": c.display_name, "page_name": c.page_name,
+                             "archetype": c.archetype, "score": c.lint["score"], "grade": c.lint["grade"],
+                             "issues": c.lint["issues"][:10], "preview": str(preview), "warnings": c.warnings})
+        self.audit({"ts": _now(), "event": "pbi_design", "page": c.page_name, "score": c.lint["score"],
+                    "visuals": len(c.placements)})
+        plan = [f"- {p['type']} '{p['title']}' at x {p['x']}, y {p['y']}, {p['width']}x{p['height']}" for p in c.placements]
+        lines = []
+        if report is not None and write:
+            files = [{"path": rel, "content": json.dumps(doc, ensure_ascii=False)} for rel, doc in c.files.items()]
+            lines.append(self.tool_write_report_files(str(report), files))
+        else:
+            out_dir = self._stamp_dir(f"{c.page_name}-{stamp}")
+            for rel, doc in c.files.items():
+                f = out_dir / "definition" / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            writer = out_dir / "write-page.ps1"
+            writer.write_text(_writer_script(c, str(report) if report is not None else ""), encoding="utf-8-sig")
+            lines.append(f"STAGED: page '{c.display_name}' ({len(c.placements)} visuals) in {out_dir}")
+            lines.append(f"USER STEP: close Power BI Desktop, run {writer}"
+                         + ("" if report is not None else " -Report <path to your .Report folder>")
+                         + ", then reopen the .pbip")
+        lines += [f"Layout '{c.archetype}':"] + plan
+        lines.append(_dz_lint.summary(c.lint, 6))
+        lines.append(f"Preview: {preview}")
+        if c.warnings:
+            lines.append("Notes: " + "; ".join(c.warnings))
+        if c.orphans:
+            lines.append("USER STEP: these visuals are from an earlier build of this page and are no longer in the "
+                         "spec - delete their folders: " + ", ".join(c.orphans))
+        lines.append("Formatting comes from the report theme - if the report does not use a Dashboard Studio theme "
+                     "yet, offer make_theme.")
+        return "\n".join(lines)
+
+    def tool_make_theme(self, preset: str = "", brand_color: str = "", mode: str = "", font: str = "",
+                        name: str = "") -> str:
+        try:
+            tokens = _dz_themes.resolve(preset or ("" if brand_color else self.cfg.theme), brand=brand_color,
+                                        mode=mode, font=font, name=name)
+        except ValueError as e:
+            raise ToolError(str(e))
+        theme = _dz_themes.build_theme(tokens)
+        rep_ = _dz_themes.theme_report(tokens)
+        slug = re.sub(r"[^\w-]+", "-", tokens.name).strip("-").lower() or "theme"
+        path = self._stamp_dir("themes") / f"{slug}.json"
+        path.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
+        self._tokens_override = tokens
+        self.audit({"ts": _now(), "event": "pbi_theme", "file": str(path), "ok": rep_["ok"]})
+        checks = ", ".join(f"{c['check']} {c['ratio']}:1" for c in rep_["checks"])
+        lines = [f"OK: theme '{tokens.name}' ({tokens.mode}) staged at {path}",
+                 f"Palette: {', '.join(tokens.data)}", f"Contrast: {checks}",
+                 "Accessibility: " + ("passes" if rep_["ok"] else "; ".join(rep_["warnings"]))]
+        lines += [f"Note: {n}" for n in rep_["notes"]]
+        lines.append(f"USER STEP: in Power BI Desktop, View > Themes > Browse for themes, choose {path}")
+        return "\n".join(lines)
+
+    def tool_lint_design(self, report_path: str, page: str = "") -> str:
+        report = self._confine(report_path)
+        try:
+            res = _dz_lint.lint_report(report, self._tokens(), only_page=page or None)
+        except FileNotFoundError as e:
+            raise ToolError(str(e))
+        if not res["pages"]:
+            raise ToolError(f"no page named '{page}' in {report.name}" if page else "the report has no pages")
+        self._design.append({"tool": "lint_design", "report": str(report), "score": res["score"],
+                             "grade": res["grade"], "pages": [{k: p[k] for k in ("displayName", "score", "grade")}
+                                                             for p in res["pages"]]})
+        lines = [f"Report design score {res['score']}/100 (grade {res['grade']}) over {len(res['pages'])} page(s)"]
+        for p in res["pages"]:
+            lines.append(f"Page '{p['displayName']}': " + _dz_lint.summary(p, 6).replace("\n", "\n  "))
+        for c in res["cross_page"]:
+            lines.append(f"[{c['severity']}] {c['message']}")
+        return "\n".join(lines)
+
+    def tool_svg_measure(self, kind: str, measure: str, axis: str = "", target: str = "", comparison: str = "",
+                         table: str = "_Measures", name: str = "", colour: str = "") -> str:
+        kind = (kind or "").strip().lower().replace("-", "_")
+        colour = colour or self._tokens().accent
+        try:
+            if kind == "sparkline":
+                if not axis:
+                    raise ToolError("sparkline needs axis (a date column, e.g. 'Date'[Date])")
+                expr = _dz_svg.sparkline(measure, axis, colour)
+            elif kind in ("progress", "bullet"):
+                if not target:
+                    raise ToolError(f"{kind} needs target (a measure)")
+                expr = (_dz_svg.progress(measure, target, colour) if kind == "progress"
+                        else _dz_svg.bullet(measure, target))
+            elif kind == "delta_badge":
+                if not comparison:
+                    raise ToolError("delta_badge needs comparison (a measure, e.g. the prior-year value)")
+                t = self._tokens()
+                expr = _dz_svg.delta_badge(measure, comparison, good=t.good, bad=t.bad)
+            elif kind == "colour_rule":
+                t = self._tokens()
+                expr = _dz_svg.colour_rule(measure, good=t.good, bad=t.bad)
+            else:
+                raise ToolError(f"unknown kind '{kind}' - use sparkline, progress, bullet, delta_badge or colour_rule")
+        except ValueError as e:
+            raise ToolError(str(e))
+        problems = _dz_svg.check_dax(expr)
+        if problems:
+            raise ToolError("generated DAX failed its checks: " + "; ".join(problems))
+        base = re.sub(r"^.*\[|\]$", "", measure.strip())
+        mname = name or f"{base} {kind.replace('_', ' ').title()}"
+        script = _dz_svg.tmdl_script(table or "_Measures", mname, expr, image=kind != "colour_rule")
+        staged = self.tool_stage_tmdl(script, f"{kind} {mname}")
+        use = ("Put it in a table or matrix (or the new card) and set the image size in the visual's format pane."
+               if kind != "colour_rule" else
+               "Use it in Format > (font or background) colour > Format style: Field value.")
+        test = f"EVALUATE ROW ( \"img\", [{mname}] )"
+        return "\n".join([staged, f"Measure [{mname}] ({'image URL' if kind != 'colour_rule' else 'hex colour'}). {use}",
+                          f"Test it with run_dax_query: {test}",
+                          f"USER STEP: paste the staged script into TMDL view, Apply, then Save ({mname})"])
 
     def outbound_violations(self, query: str) -> list:
         v = []

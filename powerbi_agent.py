@@ -6,6 +6,7 @@ Three layers:
                     * Agent Jo's DocumentStore (agent.rag) when that package is importable,
                     * the local Microsoft Learn index kept current by refresh_docs.py,
                     * the user's own PBIP project (real table / column / measure names),
+                    * curated design and modelling guides shipped in knowledge/,
                   reranked and passed in as [S1]..[Sn] source-of-truth passages.
   - BEHAVIOUR  -> the `powerbi` Ollama model's rulebook (the brain), full or modular.
   - EXECUTION  -> jo_powerbi.PowerBIAgent's gated tools (read_project, write_report_files,
@@ -36,7 +37,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "agent-jo"))     # jo_powerbi, pbi_dax, pbir_schema live there
 
 from jo_powerbi import PowerBIAgent, PowerBIConfig, PowerBIResult, is_powerbi_request  # noqa: E402,F401
-from pbi_retrieval import DEFAULT_DOCS_DB, DocsIndex, HybridRetriever, OllamaEmbedder, ProjectIndex  # noqa: E402
+from pbi_retrieval import (DEFAULT_DOCS_DB, DocsIndex, GuideIndex, HybridRetriever, OllamaEmbedder,  # noqa: E402
+                           ProjectIndex)
 
 try:  # Agent Jo's own index and config, when this runs inside the Jo app
     from agent.rag import DocumentStore  # type: ignore
@@ -75,6 +77,12 @@ def _docs_index():
     return DocsIndex(DOCS_DB) if Path(DOCS_DB).exists() else None
 
 
+@lru_cache(maxsize=1)
+def _guide_index():
+    folder = HERE / "knowledge"
+    return GuideIndex(folder) if folder.exists() else None
+
+
 @lru_cache(maxsize=8)
 def _project_index(roots: tuple):
     return ProjectIndex(roots) if roots else None
@@ -82,7 +90,7 @@ def _project_index(roots: tuple):
 
 def get_retriever(project_roots: Optional[list] = None, embed_model: str = EMBED_MODEL) -> HybridRetriever:
     """Build (cheaply - stores are cached) the retriever over every available source."""
-    sources = [("jo", _jo_store(), 1.0), ("learn", _docs_index(), 1.0),
+    sources = [("jo", _jo_store(), 1.0), ("learn", _docs_index(), 1.0), ("guide", _guide_index(), 1.0),
                ("project", _project_index(tuple(project_roots or ())), 0.9)]
     embed = OllamaEmbedder(embed_model, OLLAMA_HOST) if embed_model else None
     return HybridRetriever(sources, embed=embed)

@@ -164,7 +164,7 @@ c) Or the user drags tables into TMDL view and pastes the script, or sends a scr
 17. To locate objects: in Options > Report settings enable "Copy object names when right clicking on report objects", then right-click a visual > Copy object name - that is its folder name.
 
 8.3 Canvas and layout defaults
-1280 x 720, displayOption "FitToPage". 8 px grid: x, y, width and height are multiples of 8. Margins 24, gutters 16. Title textbox at y 16 (height 48); slicer strip top-right at y 16 (height 80); KPI row at y 112 (cards 120 high, four across at x 24, 336, 648, 960, width 296); main visuals from y 248 down to y 696. z and tabOrder follow reading order in steps of 1000. At most 8 data visuals per page.
+1280 x 720, displayOption "FitToPage". 8 px grid: x, y, width and height are multiples of 8. Margins 24, gutters 16. Title textbox at y 16 (height 48, or 80 when it shares the top band with slicers); slicer strip top-right at y 16 (height 80); KPI row at y 112 (cards 120 high, four across at x 24, 336, 648, 960, width 296); main visuals from y 248 down to y 696. z and tabOrder follow reading order in steps of 1000. At most 8 data visuals per page.
 
 8.4 Query roles by visualType (verified set; anything else -> rule 12)
 card, multiRowCard: Values
@@ -398,4 +398,34 @@ Here-strings must be single-quoted (@' ... '@) so "$schema" is not expanded, and
 - No secrets in code: interactive sign-in, environment variables or SecretManagement.
 - Data stays local. Flag any step that sends data or model metadata off the machine (online formatters, external APIs, public links). Never recommend Publish to web for internal data.
 - Do not echo real data values back unless the task needs them.
+
+## 12. DASHBOARD DESIGN SYSTEM
+Pages must look designed, not assembled: consistent, clear in hierarchy, restrained. Quality comes from the design engine and the rules below, not from improvising coordinates.
+12.1 Build with the engine
+- When design_dashboard is available, every new page goes through it. You decide the content (the one question the page answers, KPIs, charts, exact model fields, titles); the engine decides geometry, formatting, alt text, reading order and validation. Never hand-place coordinates when the tool exists.
+- Use exact model names (read_project first if unsure). Spec example:
+{"title": "FX Desk Overview", "subtitle": "Notional and rates, current year", "layout": "auto",
+ "kpis": [{"measure": "[Notional (ZAR)]", "label": "Notional", "trend": "'Date'[Month]", "target": "[Notional Target]"}, "[Trade Count]"],
+ "visuals": [{"type": "line", "title": "Notional by month", "category": "'Date'[Month]", "values": "[Notional (ZAR)]"},
+             {"type": "bar", "title": "Top clients by notional", "category": "'Client'[Client Name]", "values": "[Notional (ZAR)]"},
+             {"type": "table", "title": "Client detail", "columns": ["'Client'[Client Name]", "[Notional (ZAR)]"]}],
+ "slicers": ["'Date'[Year]", "'Client'[Segment]"]}
+- If the tool returns errors, fix exactly what it names (it suggests the real names) and call it again. In the final answer give the design score, the preview path and the USER STEP lines; offer make_theme when the report has no designed theme yet.
+12.2 Composition (also for pages built by hand)
+- Layouts: executive (headline KPIs, one primary trend), operational (up to 6 tiles, even grid), analytical (slicer rail for exploration), detail (table-led). At most 6 KPI tiles and 8 data visuals; one question per page; the rest goes to drillthrough or tooltip pages.
+- Grid: rows built from halves, thirds and quarters of the 1232 px content width so edges line up across rows; never "almost aligned".
+- Hierarchy: KPIs top-left, the primary visual in the largest slot, tables in a full-width row, rankings in a tall slot, donuts only for 5 or fewer parts.
+- KPI tiles carry context: trend and target (KPI visual) or a variance badge (svg_measure delta_badge). A bare number is not a KPI.
+- Titles state measure and grain or the insight, sentence case, at most 60 characters.
+12.3 Style through the theme
+- Formatting lives in the theme (make_theme): canvas and visual backgrounds, rounded borders, padding, title typography, decluttered axes, table and slicer styles. visual.json carries only query, title, alt text and padding; no hard-coded colours.
+- Colour: one accent for emphasis, greys for context, good/bad only for signed variance and always with an arrow or sign. Text 4.5:1, chart colours 3:1, palettes checked for colour-vision deficiency.
+- Type: page title 20 pt, visual titles 12 pt semibold, KPI values 26 pt, labels 9 to 10 pt, nothing below 9 pt.
+12.4 Premium techniques
+- SVG measures (svg_measure) for per-row sparklines, progress and bullet bars and variance badges in tables and matrices: data category Image URL, '#' written as %23, FORMAT(..., "en-US") for coordinates; test with run_dax_query.
+- Field parameters to switch measures or axes in one visual, calculation groups for time comparisons, tooltip pages, drillthrough, page navigator buttons, bookmarks for view toggles.
+12.5 Reviewing a design
+- Report on disk: lint_design; fix errors first (overlaps, off-canvas), then alignment and gutters, then content (clutter, chart choice, titles, alt text).
+- Screenshot: say what you see; score hierarchy, alignment, chart choice, colour, typography, clutter and accessibility 1 to 5 with evidence; then give the five highest-impact fixes as concrete settings or a design_dashboard spec.
+- Never say a page looks good without a design score or a screenshot to point to.
 """

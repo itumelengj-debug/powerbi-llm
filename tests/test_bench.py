@@ -1,5 +1,6 @@
 """Benchmark: checks against known answers, model and agent runs against the mock, compare."""
 import json
+import re
 
 import bench
 import tasks as T
@@ -126,3 +127,45 @@ def test_agent_mode_writes_land_in_sandbox(llm, tmp_path):
 def test_list(capsys):
     assert bench.main(["--list", "--category", "safety"]) == 0
     assert "4 task(s)" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ design tasks
+def test_design_checks_on_known_answers():
+    good_plan = "\n".join(["- title x 24, y 16, w 848, h 80", "- slicer x 888, y 16, w 368, h 80",
+                           "- card x 24, y 112, w 296, h 120", "- card x 336, y 112, w 296, h 120",
+                           "- card x 648, y 112, w 296, h 120", "- card x 960, y 112, w 296, h 120",
+                           "- trend x 24, y 248, w 816, h 448", "- breakdown x 856, y 248, w 400, h 448"])
+    assert ok("design-exec-layout", good_plan)
+    assert not ok("design-exec-layout", good_plan.replace("x 336, y 112", "x 300, y 112"))     # overlap + off grid
+    assert not ok("design-exec-layout", "Put the cards at the top and the chart below.")
+    theme = {"name": "T", "background": "#FFFFFF", "foreground": "#111827",
+             "dataColors": ["#0F766E", "#2563EB", "#C2410C", "#7C3AED", "#BE123C", "#A16207"]}
+    assert ok("design-brand-theme", "### THEME\n```json\n" + json.dumps(theme) + "\n```")
+    theme["dataColors"][1] = "#93C5FD"                                                         # 1.9:1 on white
+    assert not ok("design-brand-theme", "### THEME\n```json\n" + json.dumps(theme) + "\n```")
+    spark = ("### DAX\n```dax\nS = \"data:image/svg+xml;utf8,<svg><polyline stroke='%23123456' points='\" & "
+             "CONCATENATEX ( T, [x] ) & \"'/></svg>\"\n```\nSet the data category to Image URL.")
+    assert ok("design-svg-sparkline", spark)
+    assert not ok("design-svg-sparkline", spark.replace("%23", "#"))
+    assert ok("design-critique", "Cards A and B overlap and their tops are not aligned to the grid; the pie with 9 "
+                                 "slices should be a sorted bar; add titles.")
+    assert ok("design-kpi-context", "Show the value, the variance vs target with an arrow, and a sparkline trend.")
+
+
+def test_design_score_in_summary_and_agent_build(llm, tmp_path):
+    spec = {"title": "Desk Overview", "kpis": ["[Notional (ZAR)]", "[USDZAR Rate]"],
+            "visuals": [{"type": "line", "title": "Notional by month", "category": "'Date'[Month]", "values": "[Notional (ZAR)]"},
+                        {"type": "bar", "title": "Clients by notional", "category": "'Client'[Client Name]",
+                         "values": "[Notional (ZAR)]"}],
+            "slicers": ["'Date'[Year]"]}
+
+    def design_call(body):
+        # up to the .Report folder: a Windows path has a drive colon (C:\...), so never split on ':'
+        report = re.search(r" in (.+?\.Report)\b", body["messages"][-1]["content"]).group(1)
+        return call("design_dashboard", spec=spec, report_path=report)
+    llm.script = [design_call, final("Built 'Desk Overview'. Design score 100/100.")]
+    out = tmp_path / "runs"
+    assert bench.main(["--host", llm.url, "--mode", "agent", "--only", "design-build-exec", "--repeats", "1",
+                       "--out", str(out), "--no-retrieval"]) == 0
+    s = json.loads((next(out.iterdir()) / "summary.json").read_text())
+    assert s["tasks"]["design-build-exec"]["rate"] == 1.0 and s["design_score"] >= 90

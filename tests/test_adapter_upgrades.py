@@ -95,7 +95,8 @@ def test_dax_tool_only_offered_with_runner(llm, tmp_path):
     bodies = [b for p, b in llm.requests if p == "/api/chat"]
     names = [[t["function"]["name"] for t in b["tools"]] for b in bodies]
     assert "run_dax_query" not in names[0] and "run_dax_query" in names[1]
-    assert "lookup_docs, run_dax_query." in bodies[1]["messages"][0]["content"]
+    tool_line = [ln for ln in bodies[1]["messages"][0]["content"].splitlines() if ln.startswith("You have tools:")][0]
+    assert tool_line.endswith("design_dashboard, make_theme, lint_design, svg_measure, run_dax_query.")
     assert "run_dax_query" not in bodies[0]["messages"][0]["content"]
 
 
@@ -166,7 +167,7 @@ def test_fabricated_citation_triggers_fix_round(llm, tmp_path):
 def test_split_brain_on_real_modelfile():
     pre, sections = jp.split_brain(real_brain())
     assert pre.startswith("You are POWERBI")
-    assert [n for n, _ in sections] == list(range(1, 12))
+    assert [n for n, _ in sections] == list(range(1, 13))
 
 
 def test_select_brain_dax_question_drops_pbir_section():
@@ -179,7 +180,14 @@ def test_select_brain_dax_question_drops_pbir_section():
 
 def test_select_brain_page_build_keeps_pbir_and_discovery():
     _, included = jp.select_brain(real_brain(), "Add a new report page with a slicer visual")
-    assert {4, 8, 9} <= set(included)
+    assert {4, 8, 9, 12} <= set(included)
+
+
+def test_select_brain_design_request_includes_design_system():
+    prompt, included = jp.select_brain(real_brain(), "Make my dashboard look modern and polished")
+    assert 12 in included and "DASHBOARD DESIGN SYSTEM" in prompt
+    _, included = jp.select_brain(real_brain(), "Write a DAX measure for YTD notional")
+    assert 12 not in included
 
 
 def test_select_brain_falls_back_to_full():

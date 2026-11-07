@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Segoe UI, Segoe UI Web, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Operations Monitor">
+<rect width="1280" height="720" fill="#F7F7F5"/>
+<text x="24.0" y="49" font-size="27" font-weight="600" fill="#1A1A1A">Operations Monitor</text>
+<rect x="888.0" y="16.0" width="176.0" height="80.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="900.0" y="40.0" font-size="12" font-weight="600" fill="#555555">Team</text>
+<rect x="900.0" y="56.0" width="152.0" height="28" rx="4" fill="#FFFFFF" stroke="#E3E3DE"/>
+<text x="910.0" y="75.0" font-size="12" fill="#1A1A1A">All</text>
+<path d="M1032.0 68.0 l4 4 l4 -4" fill="none" stroke="#555555" stroke-width="1.5"/>
+<rect x="1080.0" y="16.0" width="176.0" height="80.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="1092.0" y="40.0" font-size="12" font-weight="600" fill="#555555">Month</text>
+<rect x="1092.0" y="56.0" width="152.0" height="28" rx="4" fill="#FFFFFF" stroke="#E3E3DE"/>
+<text x="1102.0" y="75.0" font-size="12" fill="#1A1A1A">All</text>
+<path d="M1224.0 68.0 l4 4 l4 -4" fill="none" stroke="#555555" stroke-width="1.5"/>
+<rect x="24.0" y="112.0" width="296.0" height="104.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="40.0" y="140.0" font-size="12" font-weight="600" fill="#555555">Open Tickets</text>
+<text x="172" y="185" font-size="33" font-weight="600" text-anchor="middle" fill="#1A1A1A">6,876</text>
+<rect x="336.0" y="112.0" width="296.0" height="104.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="352.0" y="140.0" font-size="12" font-weight="600" fill="#555555">SLA %</text>
+<text x="484" y="185" font-size="33" font-weight="600" text-anchor="middle" fill="#1A1A1A">66.1%</text>
+<rect x="648.0" y="112.0" width="296.0" height="104.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="664.0" y="140.0" font-size="12" font-weight="600" fill="#555555">Backlog</text>
+<text x="796" y="185" font-size="33" font-weight="600" text-anchor="middle" fill="#1A1A1A">2,427</text>
+<rect x="960.0" y="112.0" width="296.0" height="104.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="976.0" y="140.0" font-size="12" font-weight="600" fill="#555555">Escalations</text>
+<text x="1108" y="185" font-size="33" font-weight="600" text-anchor="middle" fill="#1A1A1A">4,063</text>
+<rect x="24.0" y="232.0" width="400.0" height="224.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="36.0" y="256.0" font-size="13" font-weight="600" fill="#1A1A1A">Tickets by day</text>
+<rect x="42.0" y="362.4" width="19.4" height="81.6" rx="2" fill="#0072B2"/>
+<rect x="73.3" y="342.4" width="19.4" height="101.6" rx="2" fill="#0072B2"/>
+<rect x="104.6" y="326.7" width="19.4" height="117.3" rx="2" fill="#0072B2"/>
+<rect x="136.0" y="305.7" width="19.4" height="138.3" rx="2" fill="#0072B2"/>
+<rect x="167.3" y="306.0" width="19.4" height="138.0" rx="2" fill="#0072B2"/>
+<rect x="198.6" y="294.1" width="19.4" height="149.9" rx="2" fill="#0072B2"/>
+<rect x="230.0" y="289.9" width="19.4" height="154.1" rx="2" fill="#0072B2"/>
+<rect x="261.3" y="310.7" width="19.4" height="133.3" rx="2" fill="#0072B2"/>
+<rect x="292.6" y="303.5" width="19.4" height="140.5" rx="2" fill="#0072B2"/>
+<rect x="324.0" y="295.1" width="19.4" height="148.9" rx="2" fill="#0072B2"/>
+<rect x="355.3" y="300.4" width="19.4" height="143.6" rx="2" fill="#0072B2"/>
+<rect x="386.6" y="292.6" width="19.4" height="151.4" rx="2" fill="#0072B2"/>
+<rect x="440.0" y="232.0" width="400.0" height="224.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="452.0" y="256.0" font-size="13" font-weight="600" fill="#1A1A1A">Backlog by team</text>
+<rect x="452.0" y="284.9" width="67.0" height="8.5" rx="2" fill="#E3E3DE"/>
+<rect x="565.3" y="278.5" width="214.3" height="21.3" rx="2" fill="#0072B2"/>
+<text x="785.6" y="293.9" font-size="10" fill="#555555">94</text>
+<rect x="452.0" y="319.3" width="68.0" height="8.5" rx="2" fill="#E3E3DE"/>
+<rect x="565.3" y="312.9" width="158.8" height="21.3" rx="2" fill="#0072B2"/>
+<text x="730.1" y="328.3" font-size="10" fill="#555555">69</text>
+<rect x="452.0" y="353.7" width="81.9" height="8.5" rx="2" fill="#E3E3DE"/>
+<rect x="565.3" y="347.3" width="142.6" height="21.3" rx="2" fill="#0072B2"/>
+<text x="713.9" y="362.7" font-size="10" fill="#555555">62</text>
+<rect x="452.0" y="388.1" width="88.8" height="8.5" rx="2" fill="#E3E3DE"/>
+<rect x="565.3" y="381.7" width="115.2" height="21.3" rx="2" fill="#0072B2"/>
+<text x="686.5" y="397.1" font-size="10" fill="#555555">50</text>
+<rect x="452.0" y="422.5" width="62.3" height="8.5" rx="2" fill="#E3E3DE"/>
+<rect x="565.3" y="416.1" width="78.7" height="21.3" rx="2" fill="#0072B2"/>
+<text x="649.9" y="431.5" font-size="10" fill="#555555">34</text>
+<rect x="856.0" y="232.0" width="400.0" height="224.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="868.0" y="256.0" font-size="13" font-weight="600" fill="#1A1A1A">SLA % trend</text>
+<line x1="868.0" y1="315" x2="1244.0" y2="315" stroke="#EEEEEA" stroke-dasharray="2 3"/>
+<line x1="868.0" y1="358" x2="1244.0" y2="358" stroke="#EEEEEA" stroke-dasharray="2 3"/>
+<line x1="868.0" y1="401" x2="1244.0" y2="401" stroke="#EEEEEA" stroke-dasharray="2 3"/>
+<polyline points="868.0,371.5 902.2,362.0 936.4,343.3 970.5,337.5 1004.7,322.3 1038.9,313.8 1073.1,324.5 1107.3,322.1 1141.5,315.2 1175.6,314.2 1209.8,307.1 1244.0,291.2" fill="none" stroke="#0072B2" stroke-width="2.5" stroke-linejoin="round"/>
+<rect x="24.0" y="472.0" width="1232.0" height="224.0" rx="8" fill="#FFFFFF" stroke="#E3E3DE" stroke-width="1"/>
+<text x="36.0" y="496.0" font-size="13" font-weight="600" fill="#1A1A1A">Oldest open tickets</text>
+<line x1="36.0" y1="536.6" x2="1244.0" y2="536.6" stroke="#E3E3DE"/>
+<rect x="40.0" y="520.6" width="201.3" height="7.4" rx="2" fill="#555555" opacity="0.55"/>
+<rect x="442.7" y="520.6" width="201.3" height="7.4" rx="2" fill="#555555" opacity="0.55"/>
+<rect x="845.3" y="520.6" width="201.3" height="7.4" rx="2" fill="#555555" opacity="0.55"/>
+<rect x="40.0" y="545.9" width="237.5" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="608.3" y="545.9" width="225.1" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1020.4" y="545.9" width="215.6" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="36.0" y="561.1" width="1208.0" height="24.6" fill="#FAFAF8"/>
+<rect x="40.0" y="570.5" width="234.1" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="623.3" y="570.5" width="210.0" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1013.8" y="570.5" width="222.2" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="40.0" y="595.1" width="279.8" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="638.7" y="595.1" width="194.6" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1062.6" y="595.1" width="173.4" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="36.0" y="610.3" width="1208.0" height="24.6" fill="#FAFAF8"/>
+<rect x="40.0" y="619.6" width="192.2" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="664.6" y="619.6" width="168.7" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1122.2" y="619.6" width="113.8" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="40.0" y="644.2" width="191.9" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="689.7" y="644.2" width="143.6" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1061.9" y="644.2" width="174.1" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="36.0" y="659.4" width="1208.0" height="24.6" fill="#FAFAF8"/>
+<rect x="40.0" y="668.8" width="208.2" height="6.4" rx="2" fill="#555555" opacity="0.8"/>
+<rect x="631.7" y="668.8" width="201.6" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<rect x="1065.9" y="668.8" width="170.1" height="6.4" rx="2" fill="#555555" opacity="0.45"/>
+<text x="1256" y="712" font-size="10" text-anchor="end" fill="#555555">Layout preview - sample shapes, not your data</text>
+</svg>

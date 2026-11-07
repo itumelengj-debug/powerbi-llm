@@ -38,7 +38,7 @@ ROOT = HERE.parent
 sys.path[:0] = [str(HERE), str(ROOT), str(ROOT / "agent-jo")]
 
 import tasks as T  # noqa: E402
-from checks import RunResult, first_measure, jsons  # noqa: E402
+from checks import RunResult, design_lint, first_measure, jsons  # noqa: E402
 from jo_powerbi import PowerBIAgent, PowerBIConfig, select_brain, verify_artifacts  # noqa: E402
 
 FIXTURE = HERE / "fixture" / "FX"
@@ -129,6 +129,12 @@ def score(task: T.Task, r: RunResult, dax_runner=None, schema=None) -> dict:
     except Exception as e:
         ok, reason = False, f"check crashed: {type(e).__name__}: {e}"
     extra = {"verifier_issues": verify_artifacts(r.text, context=r.context or None)}
+    try:
+        lint = design_lint(r)
+    except Exception:
+        lint = None
+    if lint is not None:
+        extra["design_score"] = lint["score"]
 
     if ok and schema is not None and task.category == "pbir":
         problems = [p for d in jsons(r) if isinstance(d, dict) for p in schema(d, task.id)]
@@ -187,6 +193,9 @@ def summarise(rows: list, meta: dict) -> dict:
         "failing": sorted(t for t, v in tasks.items() if v["passes"] == 0),
         "verifier_issue_rate": round(sum(bool(r["verifier_issues"]) for r in rows) / len(rows), 3) if rows else 0,
         "median_tok_s": sorted(tps)[len(tps) // 2] if tps else None,
+        "design_score": (round(sum(ds) / len(ds), 1) if (ds := [r["design_score"] for r in rows
+                                                                  if isinstance(r.get("design_score"), (int, float))])
+                         else None),
         "tasks": tasks,
     }
 
@@ -198,7 +207,8 @@ def markdown(s: dict) -> str:
              f"- **Score {s['score']:.1%}** (mean per-task pass rate); {s['all_runs_passed']}/{s['tasks_total']} "
              "tasks passed every run",
              f"- Verifier flagged {s['verifier_issue_rate']:.0%} of answers"
-             + (f"; median {s['median_tok_s']:.0f} tok/s" if s.get("median_tok_s") else ""), "",
+             + (f"; median {s['median_tok_s']:.0f} tok/s" if s.get("median_tok_s") else "")
+             + (f"; mean design score {s['design_score']}/100" if s.get("design_score") is not None else ""), "",
              "| Category | Score |", "|---|---|"]
     lines += [f"| {k} | {v:.0%} |" for k, v in s["by_category"].items()]
     lines += ["", "| Level | Score |", "|---|---|"] + [f"| {k} | {v:.0%} |" for k, v in s["by_level"].items()]
@@ -305,7 +315,8 @@ def main(argv=None) -> int:
             marks.append("." if res["pass"] else "F")
             row = {"id": t.id, "category": t.category, "level": t.level, "repeat": rep, "pass": res["pass"],
                    "reason": res["reason"], "seconds": round(secs, 1), "tok_s": round(tps, 1),
-                   "verifier_issues": res.get("verifier_issues", []), "dax_exec": res.get("dax_exec", "")}
+                   "verifier_issues": res.get("verifier_issues", []), "dax_exec": res.get("dax_exec", ""),
+                   "design_score": res.get("design_score", "")}
             rows.append(row)
             md = [f"# {t.id} (repeat {rep}) - {'PASS' if res['pass'] else 'FAIL'}", "", "## Prompt", prompt, ""]
             if res["reason"]:

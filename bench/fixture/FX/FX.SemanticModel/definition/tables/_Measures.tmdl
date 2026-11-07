@@ -11,6 +11,16 @@ table _Measures
 		displayFolder: Rates
 		lineageTag: 6c1f0d3a-0001-4000-8000-000000000003
 
+	measure 'Notional Target (ZAR)' = 5000000000
+		formatString: #,##0
+		displayFolder: Targets
+		lineageTag: 6c1f0d3a-0001-4000-8000-000000000004
+
+	measure 'Active Clients' = DISTINCTCOUNT ( Trades[ClientId] )
+		formatString: #,##0
+		displayFolder: Volume
+		lineageTag: 6c1f0d3a-0001-4000-8000-000000000005
+
 	partition _Measures = m
 		mode: import
 		source =

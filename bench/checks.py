@@ -119,3 +119,78 @@ def first_measure(text: str) -> Optional[tuple]:
         if m:
             return m.group(1).strip().strip("[]"), m.group(2).strip()
     return None
+
+
+# ------------------------------------------------------------------ design (Dashboard Studio)
+
+def _design():
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent / "agent-jo"
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from pbi_design import color, lint
+    return color, lint
+
+
+def page_visuals(r: RunResult) -> list:
+    """Visual documents with positions: written files first (agent mode), else JSON in the answer."""
+    written = [d for k, d in (r.written or {}).items() if k.endswith("visual.json") and isinstance(d, dict)]
+    docs = written or [d for d in jsons(r) if isinstance(d, dict) and "position" in d and "visual" in d]
+    return docs
+
+
+def design_lint(r: RunResult):
+    """Design linter result for the page the answer built (None when fewer than two positioned visuals)."""
+    docs = page_visuals(r)
+    if len(docs) < 2:
+        return None
+    _, lint = _design()
+    return lint.lint_page(None, docs)
+
+
+_BOX = re.compile(r"(?i)x\s*[:=]?\s*(\d{1,4})\D{1,12}?y\s*[:=]?\s*(\d{1,4})\D{1,16}?(?:w(?:idth)?)\s*[:=]?\s*(\d{1,4})"
+                  r"\D{1,16}?(?:h(?:eight)?)\s*[:=]?\s*(\d{1,4})")
+_TUPLE = re.compile(r"\(\s*(\d{1,4})\s*,\s*(\d{1,4})\s*,\s*(\d{1,4})\s*,\s*(\d{1,4})\s*\)")
+
+
+def planned_boxes(text: str) -> list:
+    """(x, y, w, h) per line of a written layout plan: 'x 24, y 112, w 296, h 120' or '(24, 112, 296, 120)'."""
+    out = []
+    for line in (text or "").splitlines():
+        m = _BOX.search(line) or _TUPLE.search(line)
+        if m:
+            out.append(tuple(int(v) for v in m.groups()))
+    return out
+
+
+def layout_plan_ok(r: RunResult, min_boxes: int = 6) -> tuple:
+    boxes = planned_boxes(r.text)
+    if len(boxes) < min_boxes:
+        return False, f"only {len(boxes)} positioned items found"
+    _, lint = _design()
+    docs = [{"name": f"b{i}", "position": {"x": x, "y": y, "width": w, "height": h},
+             "visual": {"visualType": "lineChart", "query": {"queryState": {}},
+                        "visualContainerObjects": {"title": [{"properties": {"text": {"expr": {"Literal": {"Value": "'t'"}}}}}],
+                                                   "general": [{"properties": {"altText": {"expr": {"Literal": {"Value": "'a'"}}}}}]}}}
+            for i, (x, y, w, h) in enumerate(boxes)]
+    res = lint.lint_page({"width": 1280, "height": 720}, docs)
+    bad = [i["message"] for i in res["issues"] if i["rule"] in ("overlap", "off_canvas", "off_grid")]
+    return (not bad), (bad[0] if bad else f"{len(boxes)} boxes on the grid, no overlaps")
+
+
+def theme_accessible(doc: dict, min_colours: int = 6) -> tuple:
+    """Theme JSON: >= min_colours data colours, text 4.5:1 and every data colour 3:1 against the visual background."""
+    color, _ = _design()
+    try:
+        bg = doc.get("background") or "#FFFFFF"
+        fg = doc.get("foreground") or (doc.get("textClasses", {}).get("label", {}) or {}).get("color") or "#000000"
+        cols = doc.get("dataColors") or []
+        if len(cols) < min_colours:
+            return False, f"{len(cols)} data colours"
+        if color.contrast(fg, bg) < 4.5:
+            return False, f"text {color.contrast(fg, bg):.2f}:1"
+        low = [c for c in cols if color.contrast(c, bg) < 3.0]
+        return (not low), (f"low contrast: {low}" if low else "accessible")
+    except (ValueError, AttributeError, TypeError) as e:
+        return False, f"unreadable theme ({e})"
