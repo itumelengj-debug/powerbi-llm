@@ -1,5 +1,6 @@
 """Benchmark: checks against known answers, model and agent runs against the mock, compare."""
 import json
+import re
 
 import bench
 import tasks as T
@@ -159,7 +160,8 @@ def test_design_score_in_summary_and_agent_build(llm, tmp_path):
             "slicers": ["'Date'[Year]"]}
 
     def design_call(body):
-        report = body["messages"][-1]["content"].split(" in ")[1].split(":")[0]
+        # up to the .Report folder: a Windows path has a drive colon (C:\...), so never split on ':'
+        report = re.search(r" in (.+?\.Report)\b", body["messages"][-1]["content"]).group(1)
         return call("design_dashboard", spec=spec, report_path=report)
     llm.script = [design_call, final("Built 'Desk Overview'. Design score 100/100.")]
     out = tmp_path / "runs"
