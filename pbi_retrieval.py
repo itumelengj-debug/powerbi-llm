@@ -8,6 +8,8 @@ Three sources, merged and reranked into the [S1]..[Sn] passages the brain cites:
     Every passage carries the page's ms.date so the model can prefer the newest guidance.
   - ProjectIndex: the user's own PBIP project (TMDL tables/measures, PBIR pages/visuals), so real
     table, column and measure names are in context without a read_project round-trip.
+  - GuideIndex: curated guidance shipped with this repo (knowledge/: dashboard design, chart choice,
+    KPI tiles, colour and accessibility, SVG measures, number formats ...), split by ## section.
 
 HybridRetriever pulls a wide candidate pool (default 20) from every source, normalises scores per
 source, reranks on (source score + query-term coverage [or embedding similarity] + freshness),
@@ -262,6 +264,60 @@ class ProjectIndex:
         rows = self.db.execute("SELECT text, source, bm25(p) AS s FROM p WHERE p MATCH ? ORDER BY s LIMIT ?",
                                (q, k)).fetchall()
         return [{"source": src, "text": text, "score": -s} for text, src, s in rows]
+
+
+# --------------------------------------------------------------------------- curated guides
+
+_FRONT = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
+
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:60]
+
+
+class GuideIndex:
+    """In-memory FTS index over markdown guides (one passage per '## ' section). Optional front matter:
+    ---
+    updated: 2026-11-01
+    ---"""
+
+    def __init__(self, folder):
+        self.folder = Path(folder)
+        self.db = sqlite3.connect(":memory:", check_same_thread=False)
+        self.db.execute("CREATE VIRTUAL TABLE g USING fts5(title, text, source UNINDEXED, date UNINDEXED, "
+                        "tokenize = 'porter unicode61')")
+        rows = []
+        for f in sorted(self.folder.rglob("*.md")) if self.folder.exists() else []:
+            raw = f.read_text(encoding="utf-8")
+            date = ""
+            m = _FRONT.match(raw)
+            if m:
+                raw = raw[m.end():]
+                dm = re.search(r"(?m)^updated:\s*(\S+)", m.group(1))
+                date = dm.group(1) if dm else ""
+            title_m = re.search(r"(?m)^# (.+)$", raw)
+            title = title_m.group(1).strip() if title_m else f.stem
+            rel = f.relative_to(self.folder).as_posix()
+            parts = re.split(r"(?m)^## ", raw)
+            intro = re.sub(r"(?m)^# .+$", "", parts[0]).strip()
+            if intro:
+                rows.append((title, f"{title}\n{intro}", f"guide:{rel}", date))
+            for sec in parts[1:]:
+                head, _, body = sec.partition("\n")
+                for k, chunk in enumerate(chunk_text(body.strip(), size=1600) or [""]):
+                    rows.append((f"{title} - {head.strip()}", f"{title} - {head.strip()}\n{chunk}",
+                                 f"guide:{rel}#{_slug(head)}" + (f"-{k + 1}" if k else ""), date))
+        with self.db:
+            self.db.executemany("INSERT INTO g (title, text, source, date) VALUES (?, ?, ?, ?)", rows)
+        self.count = len(rows)
+
+    def search(self, query: str, k: int = 20) -> list:
+        q = _fts_query(query)
+        if not q:
+            return []
+        rows = self.db.execute("SELECT text, source, date, bm25(g, 3.0, 1.0) AS s FROM g WHERE g MATCH ? "
+                               "ORDER BY s LIMIT ?", (q, k)).fetchall()
+        return [{"source": src, "text": text, "date": date, "score": -s} for text, src, date, s in rows]
 
 
 # --------------------------------------------------------------------------- embeddings (optional)

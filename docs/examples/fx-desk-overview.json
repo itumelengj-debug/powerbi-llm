@@ -1,0 +1,47 @@
+{
+  "title": "FX Desk Overview",
+  "subtitle": "Notional, clients and rates, current year",
+  "kpis": [
+    {
+      "measure": "[Notional (ZAR)]",
+      "label": "Notional vs target",
+      "trend": "'Date'[Month]",
+      "target": "[Notional Target (ZAR)]"
+    },
+    {
+      "measure": "[Active Clients]",
+      "label": "Active clients"
+    },
+    {
+      "measure": "[USDZAR Rate]",
+      "label": "Average USDZAR"
+    }
+  ],
+  "visuals": [
+    {
+      "type": "line",
+      "title": "Notional by month",
+      "category": "'Date'[Month]",
+      "values": "[Notional (ZAR)]"
+    },
+    {
+      "type": "bar",
+      "title": "Top clients by notional",
+      "category": "'Client'[Client Name]",
+      "values": "[Notional (ZAR)]"
+    },
+    {
+      "type": "table",
+      "title": "Client detail",
+      "columns": [
+        "'Client'[Client Name]",
+        "'Client'[Segment]",
+        "[Notional (ZAR)]"
+      ]
+    }
+  ],
+  "slicers": [
+    "'Date'[Year]",
+    "'Client'[Segment]"
+  ]
+}

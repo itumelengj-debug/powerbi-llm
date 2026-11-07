@@ -35,7 +35,8 @@ def test_initialize_and_list(server):
     assert r["result"]["protocolVersion"] == "2025-03-26" and "tools" in r["result"]["capabilities"]
     assert rpc(server, "initialize", {"protocolVersion": "1999-01-01"})["result"]["protocolVersion"] == "2025-06-18"
     names = [t["name"] for t in rpc(server, "tools/list")["result"]["tools"]]
-    assert names == ["powerbi_ask", "powerbi_search_docs", "powerbi_read_project", "powerbi_verify"]
+    assert names == ["powerbi_ask", "powerbi_search_docs", "powerbi_read_project", "powerbi_verify",
+                     "powerbi_design_dashboard", "powerbi_make_theme", "powerbi_lint_design", "powerbi_svg_measure"]
     assert server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
     assert rpc(server, "ping")["result"] == {}
     assert rpc(server, "nope")["error"]["code"] == -32601
@@ -65,7 +66,7 @@ def test_read_project_confined(server, sandbox):
 def test_search_and_ask(server, llm):
     r = rpc(server, "tools/call", {"name": "powerbi_search_docs", "arguments": {"query": "notional measure", "k": 3}})
     hits = json.loads(text_of(r))
-    assert hits and hits[0]["source"].startswith("project:")
+    assert hits and any(h["source"].startswith("project:") for h in hits)
     llm.script = [final("### DAX\n```dax\nX = 1\n```")]
     r = rpc(server, "tools/call", {"name": "powerbi_ask", "arguments": {"question": "Measure X"}})
     assert "X = 1" in text_of(r) and r["result"]["isError"] is False

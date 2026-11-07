@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Segoe UI, Segoe UI Web, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Margin Explorer">
+<rect width="1280" height="720" fill="#0B1220"/>
+<text x="24.0" y="49" font-size="27" font-weight="600" fill="#E6EAF2">Margin Explorer</text>
+<rect x="24.0" y="80.0" width="176.0" height="104.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="36.0" y="104.0" font-size="12" font-weight="600" fill="#A3AFC2">Year</text>
+<rect x="36.0" y="144.0" width="152.0" height="28" rx="4" fill="#111A2C" stroke="#22304D"/>
+<text x="46.0" y="163.0" font-size="12" fill="#E6EAF2">All</text>
+<path d="M168.0 156.0 l4 4 l4 -4" fill="none" stroke="#A3AFC2" stroke-width="1.5"/>
+<rect x="216.0" y="80.0" width="336.0" height="104.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="232.0" y="108.0" font-size="12" font-weight="600" fill="#A3AFC2">Revenue</text>
+<text x="384" y="153" font-size="33" font-weight="600" text-anchor="middle" fill="#E6EAF2">56.9bn</text>
+<rect x="568.0" y="80.0" width="336.0" height="104.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="584.0" y="108.0" font-size="12" font-weight="600" fill="#A3AFC2">Margin %</text>
+<text x="736" y="153" font-size="33" font-weight="600" text-anchor="middle" fill="#E6EAF2">4.1%</text>
+<rect x="920.0" y="80.0" width="336.0" height="104.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="936.0" y="108.0" font-size="12" font-weight="600" fill="#A3AFC2">Discount %</text>
+<text x="1088" y="153" font-size="33" font-weight="600" text-anchor="middle" fill="#E6EAF2">74.5%</text>
+<rect x="24.0" y="200.0" width="176.0" height="80.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="36.0" y="224.0" font-size="12" font-weight="600" fill="#A3AFC2">Region</text>
+<rect x="36.0" y="240.0" width="152.0" height="28" rx="4" fill="#111A2C" stroke="#22304D"/>
+<text x="46.0" y="259.0" font-size="12" fill="#E6EAF2">All</text>
+<path d="M168.0 252.0 l4 4 l4 -4" fill="none" stroke="#A3AFC2" stroke-width="1.5"/>
+<rect x="216.0" y="200.0" width="688.0" height="240.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="228.0" y="224.0" font-size="13" font-weight="600" fill="#E6EAF2">Margin vs discount by product</text>
+<circle cx="671.7" cy="362.2" r="5.7" fill="#60A5FA" opacity="0.7"/>
+<circle cx="308.9" cy="385.2" r="5.2" fill="#60A5FA" opacity="0.7"/>
+<circle cx="744.3" cy="345.9" r="5.1" fill="#60A5FA" opacity="0.7"/>
+<circle cx="283.1" cy="416.9" r="4.4" fill="#60A5FA" opacity="0.7"/>
+<circle cx="568.5" cy="365.3" r="5.7" fill="#60A5FA" opacity="0.7"/>
+<circle cx="670.9" cy="316.4" r="5.0" fill="#60A5FA" opacity="0.7"/>
+<circle cx="364.6" cy="379.6" r="3.4" fill="#60A5FA" opacity="0.7"/>
+<circle cx="587.3" cy="337.2" r="4.9" fill="#60A5FA" opacity="0.7"/>
+<circle cx="526.3" cy="380.5" r="7.0" fill="#60A5FA" opacity="0.7"/>
+<circle cx="706.1" cy="348.9" r="4.9" fill="#60A5FA" opacity="0.7"/>
+<circle cx="355.5" cy="418.6" r="3.6" fill="#60A5FA" opacity="0.7"/>
+<circle cx="290.9" cy="403.2" r="4.7" fill="#60A5FA" opacity="0.7"/>
+<circle cx="667.1" cy="351.0" r="3.5" fill="#60A5FA" opacity="0.7"/>
+<circle cx="474.1" cy="380.9" r="6.2" fill="#60A5FA" opacity="0.7"/>
+<circle cx="641.0" cy="349.2" r="4.8" fill="#60A5FA" opacity="0.7"/>
+<circle cx="462.5" cy="365.6" r="5.2" fill="#60A5FA" opacity="0.7"/>
+<circle cx="295.7" cy="418.6" r="5.0" fill="#60A5FA" opacity="0.7"/>
+<circle cx="682.0" cy="295.4" r="3.4" fill="#60A5FA" opacity="0.7"/>
+<circle cx="464.2" cy="360.4" r="6.0" fill="#60A5FA" opacity="0.7"/>
+<circle cx="744.2" cy="306.1" r="6.5" fill="#60A5FA" opacity="0.7"/>
+<circle cx="283.2" cy="418.6" r="3.5" fill="#60A5FA" opacity="0.7"/>
+<circle cx="448.1" cy="415.1" r="3.3" fill="#60A5FA" opacity="0.7"/>
+<circle cx="433.3" cy="376.1" r="5.1" fill="#60A5FA" opacity="0.7"/>
+<circle cx="310.7" cy="406.2" r="6.5" fill="#60A5FA" opacity="0.7"/>
+<circle cx="721.3" cy="326.4" r="5.4" fill="#60A5FA" opacity="0.7"/>
+<circle cx="844.3" cy="249.4" r="4.9" fill="#60A5FA" opacity="0.7"/>
+<circle cx="585.3" cy="379.8" r="3.0" fill="#60A5FA" opacity="0.7"/>
+<circle cx="513.6" cy="350.1" r="5.1" fill="#60A5FA" opacity="0.7"/>
+<rect x="920.0" y="200.0" width="336.0" height="240.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="932.0" y="224.0" font-size="13" font-weight="600" fill="#E6EAF2">Margin bridge</text>
+<rect x="939.8" y="315.2" width="23.4" height="56.4" fill="#60A5FA"/>
+<rect x="978.8" y="315.2" width="23.4" height="2.0" fill="#F87171"/>
+<rect x="1017.8" y="289.8" width="23.4" height="27.3" fill="#34D399"/>
+<rect x="1056.8" y="257.8" width="23.4" height="31.9" fill="#34D399"/>
+<rect x="1095.8" y="233.4" width="23.4" height="24.4" fill="#34D399"/>
+<rect x="1134.8" y="219.2" width="23.4" height="30.2" fill="#34D399"/>
+<rect x="1173.8" y="249.4" width="23.4" height="7.6" fill="#F87171"/>
+<rect x="1212.8" y="257.0" width="23.4" height="171.0" fill="#60A5FA"/>
+<rect x="24.0" y="296.0" width="176.0" height="80.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="36.0" y="320.0" font-size="12" font-weight="600" fill="#A3AFC2">Category</text>
+<rect x="36.0" y="336.0" width="152.0" height="28" rx="4" fill="#111A2C" stroke="#22304D"/>
+<text x="46.0" y="355.0" font-size="12" fill="#E6EAF2">All</text>
+<path d="M168.0 348.0 l4 4 l4 -4" fill="none" stroke="#A3AFC2" stroke-width="1.5"/>
+<rect x="24.0" y="392.0" width="176.0" height="80.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="36.0" y="416.0" font-size="12" font-weight="600" fill="#A3AFC2">Channel</text>
+<rect x="36.0" y="432.0" width="152.0" height="28" rx="4" fill="#111A2C" stroke="#22304D"/>
+<text x="46.0" y="451.0" font-size="12" fill="#E6EAF2">All</text>
+<path d="M168.0 444.0 l4 4 l4 -4" fill="none" stroke="#A3AFC2" stroke-width="1.5"/>
+<rect x="216.0" y="456.0" width="1040.0" height="240.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="228.0" y="480.0" font-size="13" font-weight="600" fill="#E6EAF2">Margin by category and region</text>
+<line x1="228.0" y1="519.5" x2="1244.0" y2="519.5" stroke="#22304D"/>
+<rect x="232.0" y="504.2" width="254.0" height="7.0" rx="2" fill="#A3AFC2" opacity="0.55"/>
+<rect x="740.0" y="504.2" width="254.0" height="7.0" rx="2" fill="#A3AFC2" opacity="0.55"/>
+<rect x="232.0" y="528.4" width="244.1" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="1028.6" y="528.4" width="207.4" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="228.0" y="543.0" width="1016.0" height="23.5" fill="#16213A"/>
+<rect x="232.0" y="551.9" width="310.4" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="967.0" y="551.9" width="269.0" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="232.0" y="575.4" width="353.3" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="1018.0" y="575.4" width="218.0" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="228.0" y="590.0" width="1016.0" height="23.5" fill="#16213A"/>
+<rect x="232.0" y="598.9" width="362.9" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="1007.1" y="598.9" width="228.9" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="232.0" y="622.4" width="233.6" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="1072.1" y="622.4" width="163.9" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="228.0" y="637.0" width="1016.0" height="23.5" fill="#16213A"/>
+<rect x="232.0" y="645.9" width="259.5" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="996.8" y="645.9" width="239.2" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="232.0" y="669.4" width="400.1" height="6.1" rx="2" fill="#E6EAF2" opacity="0.8"/>
+<rect x="1041.4" y="669.4" width="194.6" height="6.1" rx="2" fill="#A3AFC2" opacity="0.45"/>
+<rect x="24.0" y="488.0" width="176.0" height="80.0" rx="8" fill="#111A2C" stroke="#22304D" stroke-width="1"/>
+<text x="36.0" y="512.0" font-size="12" font-weight="600" fill="#A3AFC2">Segment</text>
+<rect x="36.0" y="528.0" width="152.0" height="28" rx="4" fill="#111A2C" stroke="#22304D"/>
+<text x="46.0" y="547.0" font-size="12" fill="#E6EAF2">All</text>
+<path d="M168.0 540.0 l4 4 l4 -4" fill="none" stroke="#A3AFC2" stroke-width="1.5"/>
+<text x="1256" y="712" font-size="10" text-anchor="end" fill="#A3AFC2">Layout preview - sample shapes, not your data</text>
+</svg>

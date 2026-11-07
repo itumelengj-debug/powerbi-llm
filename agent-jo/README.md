@@ -17,6 +17,7 @@ pbi = PowerBIAgent(
     dax_runner=DesktopDaxRunner(),              # optional: read-only run_dax_query tool (pbi_dax.py)
     schema_validator=SchemaValidator(),         # optional: PBIR $schema checks (pbir_schema.py)
     on_token=stream_to_ui,                      # optional: (kind, text) -> None, streams the answer
+    # PowerBIConfig(theme="midnight") or (brand_color="#C8102E") sets the Dashboard Studio look
 )
 
 if is_powerbi_request(text):                    # or Jo's own router
@@ -44,6 +45,11 @@ if is_powerbi_request(text):                    # or Jo's own router
    - `stage_tmdl` saves a model script (new measures, columns and so on) to `~/PBI-Staging` for you to paste into TMDL view and Apply. It rejects any script that would replace a whole table, and scripts indented with spaces.
    - `run_powershell` always needs approval. Output is captured and the script's hash is audited.
    - `run_dax_query` (only with a `dax_runner`) runs a `DEFINE`/`EVALUATE` query against the open Desktop model so the model can test a measure before delivering it. XMLA and DMV queries are refused. The audit log records the query hash and row counts, never values.
+   - Dashboard Studio tools (when `pbi_design/` sits next to this file; `PowerBIConfig(design_tools=False)` turns them off):
+     - `design_dashboard` compiles a short spec into a complete PBIR page. The engine handles grid layout, theme-driven formatting, alt text, reading order and checks every field against the model's TMDL. With a report path it writes through `write_report_files` (same approval, backup and Desktop check); without one it stages the files and a PowerShell writer. The design score and an HTML preview come back in `res.design`.
+     - `make_theme` stages an accessible theme (preset or brand colour) and restyles the session's previews.
+     - `lint_design` scores an existing report 0-100 and lists fixes. It is read-only.
+     - `svg_measure` generates and stages SVG measures: sparkline, progress, bullet, delta badge and colour rule.
    - `lookup_docs` goes through Jo's web search. Queries are blocked if they contain model object names, long numbers, emails or GUIDs, and only learn.microsoft.com results are returned.
 5. **Verify.** The final answer is checked automatically. Every code block needs a `###` header. The checker also looks for:
    - invalid JSON,
@@ -55,6 +61,7 @@ if is_powerbi_request(text):                    # or Jo's own router
    - hard-coded secrets,
    - `...` placeholders,
    - citations that point at a passage that was never provided (e.g. `[S7]` when only S1–S6 were sent),
+   - hand-written pages whose visuals overlap or run off the canvas,
    - PBIR files that violate their `$schema` (with a `schema_validator`).
 
    If anything fails, the model gets one automatic fix round. Anything still failing comes back in `res.issues`.
@@ -70,7 +77,7 @@ if is_powerbi_request(text):                    # or Jo's own router
 
 ```
 python -m pytest -q test_jo_powerbi.py      # this folder
-python -m pytest                            # from the repo root: everything (85 tests)
+python -m pytest                            # from the repo root: everything (136 tests)
 ```
 
 The tests run against a mock Ollama server, so no GPU is needed.

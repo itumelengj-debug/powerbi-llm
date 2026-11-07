@@ -212,3 +212,40 @@ Status: implemented and unit-tested against mock Ollama / llama-server / Learn s
 benchmark baseline on the real model, the Desktop DAX runner and the live Learn crawl still need
 a first run on the workstation. Whether the modular brain matches the full one is an open
 question for `bench.py --brain modular --compare`.
+
+---
+
+## 9. Dashboard Studio: design in code (November 2026)
+
+Goal: pages that look designed, not assembled, from a local 26B model. Letting the model
+improvise coordinates and formatting JSON gives pages that are almost aligned, inconsistently
+styled and overfull. The fix is the same as for knowledge (section 3.2): put what must be
+reliable in deterministic components and let the model do the judgement.
+
+| Component | What it does |
+|---|---|
+| Spec compiler | The model writes a short spec (title, KPIs, charts, real fields, titles); the compiler produces complete PBIR pages that follow the rulebook templates |
+| Layout engine | Four archetypes on the 8 px grid; rows split on shared halves, thirds and quarters so edges line up; shape-aware slot assignment |
+| Model checks | Every field resolved against TMDL; wrong names fail with suggestions that prefer the field kind the slot expects |
+| Theme engine | Presets and brand themes; WCAG contrast; CIEDE2000 separability under simulated CVD; automatic palette repair |
+| Linter | 0-100 design score for any PBIR report, so outputs from any model or person are compared on one scale |
+| Preview and review | SVG/HTML previews before Desktop opens; screenshot critique through the model's vision input |
+| SVG measures | Sparklines, progress and bullet bars, variance badges, with URI encoding and locale-proof coordinates |
+| Guides, rulebook, bench | Nine curated design guides for retrieval; rulebook section 12; 6 design tasks scored by the linter and contrast maths |
+
+Findings while building it:
+
+- **The linter found defects in the engine's own output.** It caught three kinds of problem:
+  - KPI tiles in thirds sat 8 px off a 2:1 chart split below them;
+  - analytical-layout slicers had near-miss bottom edges;
+  - the detail layout's chart strip was too short to read.
+
+  All three were fixed. Across 884 compiled combinations there are now no overlaps, off-grid
+  positions or near-miss alignments (mean score 96.5).
+- **Hand-picked palettes failed colour-vision checks.** The blue/violet pair in the first
+  presets was almost indistinguishable with deuteranopia (ΔE 0.5). Palettes are now
+  repaired automatically, and every preset passes.
+
+Status: implemented and tested (136 unit tests on mocks). Generated pages and themes still need
+their first import into Power BI Desktop on the workstation before production use.
+
